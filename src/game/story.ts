@@ -833,6 +833,14 @@ export class Story {
     if (s < S.TOWER || s === S.GEARS || s === S.MECHANISM || s === S.DAWN) g.entity.hide();
     // sky / weather / fog
     const sky = g.sky.uniforms;
+    // colour grade per chapter: warm fair → cold and drained after midnight → red at the climax
+    const gu = g.engine.grade.uniforms;
+    const night2 = s >= S.MIDNIGHT && s < S.DAWN;
+    gu.desat.value = s === S.PROLOGUE ? 0.05 : s === S.DAWN ? 0.1 : s >= S.CLIMAX ? 0.25 : 0.38;
+    gu.vignette.value = s === S.PROLOGUE || s === S.DAWN ? 0.3 : 0.62;
+    gu.grain.value = night2 ? 0.06 : 0.035;
+    gu.aberr.value = night2 ? 0.35 : 0;
+    gu.tint.value.set(...((s === S.CLIMAX || s === S.CLIMAX_RUN ? [1.08, 0.9, 0.88] : night2 ? [0.9, 0.97, 1.06] : s === S.DAWN ? [1.05, 1.0, 0.95] : [1.04, 0.99, 0.94]) as [number, number, number]));
     sky.uStorm.value = s === S.PROLOGUE ? 0.15 : s < S.TOWER ? 0.35 : s < S.CLIMAX_RUN ? 0.85 : s === S.CLIMAX_RUN ? 0.6 : 0;
     sky.uRed.value = s === S.CLIMAX || s === S.CLIMAX_RUN ? 0.9 : 0;
     this.dawnTarget = s === S.DAWN ? 1 : s === S.CLIMAX_RUN ? 0.15 : 0;
@@ -926,6 +934,9 @@ export class Story {
     this.stage = 0;
     this.clockMin = 23 * 60 + 52;
     this.hintsShown.clear();
+    this.currentObjective = null;
+    this.objectiveLog = [];
+    this.objectiveTarget = null;
     this.events.clear();
     this.prologueDoneTalk.clear();
     this.candleLit = [false, false, false, false, false, false, false];
@@ -1006,7 +1017,7 @@ export class Story {
         /* ignore */
       }
     }
-    if (this.stage > 0) this.g.ui.toast('', '<span style="font-style:italic;opacity:.7">Progreso guardado</span>', 2);
+    if (this.stage > 0) this.g.ui.toast('', 'Guardando', 2);
   }
 
   hasSave() {
@@ -1105,8 +1116,8 @@ export class Story {
     const g = this.g;
     g.ui.clock('11:52 p.m.');
     await g.wait(1.5);
-    g.ui.toast('Mensaje', 'Tu conductor llega a las <b>12:05</b> · Calle Nieto (lado sur del jardín).', 6);
-    g.sfx('ui_note', undefined, 0.5, { bus: 'ui' });
+    g.phone.signal(true);
+    g.phone.message('Tu conductor · Roberto', 'Llego a las <b>12:05</b>. Te espero en la calle Nieto, lado sur del jardín.', { dur: 6 });
     await g.wait(1.2);
     this.objective('Espera tu taxi (12:05). Puedes dar una vuelta por el jardín.');
     g.ui.hint('<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar · <kbd>Ratón</kbd> mirar · <kbd>F</kbd> linterna', 8);
@@ -1115,10 +1126,20 @@ export class Story {
     g.ui.hint('<kbd>Shift</kbd> correr · <kbd>C</kbd> agacharse', 5);
     // wait for 11:47
     await g.until(() => this.clockMin >= 23 * 60 + 54);
-    g.sfx('ui_note', undefined, 0.5, { bus: 'ui' });
-    g.ui.toast('Mensaje · Número desconocido', '¿Ya vienes, Julián? Tu hermana te está esperando en el kiosco.', 7);
-    await g.wait(2.5);
-    await g.think('¿Mi hermana…? Número equivocado. Tiene que ser.');
+    // a call from an unknown number: a child's voice
+    const answered = await g.call('Número desconocido', [
+      ['Voz de niña', '¿Julián? ¿Ya vienes?', 'radioLucia'],
+      ['Voz de niña', 'Te estoy esperando en el kiosco. Como me dijiste.', 'radioLucia'],
+    ], { hint: true });
+    if (answered) {
+      g.sfx('loop_radio_static', undefined, 0.25);
+      await g.think('¿Qué…? Colgaron.');
+      await g.think('Esa voz… no. Número equivocado. Tiene que ser.');
+    } else {
+      g.phone.message('Número desconocido', '¿Ya vienes, Julián? Tu hermana te está esperando en el kiosco.', { bad: true, dur: 7 });
+      await g.wait(2.5);
+      await g.think('¿Mi hermana…? Número equivocado. Tiene que ser.');
+    }
     await g.until(() => this.clockMin >= 23 * 60 + 55);
     // panadero closes
     this.closeBakery();
@@ -1158,6 +1179,7 @@ export class Story {
     const g = this.g;
     const n = this.npc[id];
     n.talking = true;
+    g.ui.letterbox(true);
     const p = n.pos.clone().setY(n.pos.y + 1.6);
     g.player.lookOverride = { target: n.pos.clone().setY(n.pos.y + (n.baseAnim === 'sitting' ? 1.0 : 1.55)), strength: 5 };
     setTimeout(() => (g.player.lookOverride = null), 450);
@@ -1209,6 +1231,7 @@ export class Story {
       }
     } finally {
       n.talking = false;
+      g.ui.letterbox(false);
       this.prologueDoneTalk.add(id);
     }
   }
@@ -1262,11 +1285,24 @@ export class Story {
     g.sfx('whisper_2', g.player.pos.clone().add(V(1.5, 1.6, -1)), 0.5);
     await g.wait(2.0);
     g.sfx('power_up', undefined, 0.6);
+    // between two flickers a tall figure stands a few metres ahead… then it's gone
+    const fwd = g.player.forward;
+    const fig = g.player.pos.clone().addScaledVector(fwd, 5.5);
+    const figOk = g.nav.walkable(fig.x, fig.z) && !g.world.col.blocked(g.player.eyePos, fig.clone().setY(1.6));
     let k = 0;
     for (let i = 0; i < 12; i++) {
-      k = Math.random();
+      k = i === 4 || i === 5 ? 1 : i === 6 ? 0 : Math.random();
       g.world.lights.globalLevel = k > 0.5 ? 1 : 0.1;
-      await g.wait(0.07 + Math.random() * 0.1);
+      if (figOk && i === 4) {
+        g.entity.place(fig, Math.atan2(-fwd.x, -fwd.z));
+        g.entity.setState('inactive');
+      }
+      if (figOk && i === 6) {
+        g.entity.hide();
+        g.sfx('stinger_low', undefined, 0.7);
+        g.player.camShake = 0.5;
+      }
+      await g.wait(i === 4 || i === 5 ? 0.22 : 0.07 + Math.random() * 0.1);
     }
     g.world.lights.globalLevel = 1;
     g.engine.grade.uniforms.blackout.value = 0;
@@ -1281,7 +1317,8 @@ export class Story {
     this.objective('¿Dónde se fueron todos?');
     this.saveCheckpoint(g.player.pos.clone(), g.player.yaw);
     await g.wait(3);
-    g.ui.toast('Teléfono', 'Sin señal · 12:00', 3);
+    g.phone.signal(false);
+    g.phone.message('Teléfono', 'Sin servicio. Solo llamadas de emergencia.', { bad: true, dur: 3.5 });
     await g.wait(2);
     await g.think('Allá, junto a la fuente. Una luz en el suelo.');
     g.ui.hint('<kbd>F</kbd> enciende tu linterna en los lugares oscuros', 5);
@@ -2170,7 +2207,8 @@ export class Story {
       if (kind === 'normal') {
         await g.say('Don Beto', '¡Joven! ¿Se quedó dormido en la banca? Ándele, que ya casi empieza la fiesta.', 'beto', beto.pos.clone().setY(1.6));
         await g.think('Nadie recuerda el apagón. Solo yo.');
-        g.ui.toast('Mensaje', 'Tu conductor llegó · Calle Nieto.', 6);
+        g.phone.signal(true);
+        g.phone.message('Tu conductor · Roberto', 'Ya llegué. Estoy en la calle Nieto. ¿Todo bien? Te marqué toda la noche.', { dur: 6 });
         this.objective('Ve al taxi.');
       } else {
         g.sfx('bells_toll_sequence', V(-11.25, 21, -39.25), 0.7, { ref: 20 });
@@ -2297,6 +2335,14 @@ export class Story {
       g.tasks.run(async () => {
         await g.think('Las velas están encendidas. Alguien las acaba de prender.');
         g.sfx('whisper_1', V(5.8, 1.6, -47.5), 0.45);
+        g.tasks.run(async () => {
+          await g.wait(14);
+          if (this.zoneIs('church') && g.canScare()) {
+            g.sfx('door_slam', V(0, 1.5, -38), 0.9, { ref: 6 });
+            await g.wait(1.5);
+            if (g.canScare()) g.scare('behind');
+          }
+        });
         await g.wait(1.2);
         if (!this.flags.confessed && !g.player.hidden) {
           await g.think('¿Alguien en el confesionario?');
@@ -2329,6 +2375,19 @@ export class Story {
       g.tasks.run(async () => {
         await g.think('Huele a humedad… y a canela. Como antes.');
         this.objective('Explora la casa.');
+        await g.wait(6);
+        if (this.stage !== S.KIOSK || g.zoneName !== 'house') return;
+        // the phone rings with no signal: the caller is "Casa", a line that no longer exists
+        const ok = await g.call('Casa', [
+          ['Casa', '…', 'whisper'],
+          ['Voz de niña', 'Ya se fue la luz, Julián. Tengo miedo.', 'radioLucia'],
+          ['Voz de niña', '¿Vienes por mí? Mamá dice que no me sueltes.', 'radioLucia'],
+        ], { status: 'Sin servicio · Llamada entrante' });
+        if (ok) {
+          g.sfx('stinger_low', undefined, 0.5);
+          this.g.scare('flicker');
+          await g.think('Esa es la línea de la casa. Hace veinte años que no existe.');
+        }
       });
     }
     if (z === 'patio' && this.flags.roofSightingPending) {
@@ -2529,10 +2588,47 @@ export class Story {
   }
 
   // ======================================================================= UPDATE
+  private scareT = 80;
+  /** a far figure that watches from the dark and vanishes when you look too long or come closer */
+  private farFigure() {
+    const g = this.g;
+    const f = g.player.forward;
+    for (let tries = 0; tries < 8; tries++) {
+      const a = (Math.random() - 0.5) * 0.9;
+      const dir = V(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a));
+      const p = g.player.pos.clone().addScaledVector(dir, 14 + Math.random() * 8);
+      p.y = 0.1;
+      if (!g.nav.walkable(p.x, p.z) || g.world.col.blocked(g.player.eyePos, p.clone().setY(1.7))) continue;
+      g.entity.apparition(p, g.player.pos, { maxTime: 7 });
+      g.sfx('jingle_bells_small', p.clone().setY(1.3), 0.3, { ref: 6 });
+      return true;
+    }
+    return false;
+  }
+
+  /** random scares while exploring: never during chases, dialogue, puzzles or scripted scenes */
+  private updateScares(dt: number) {
+    const g = this.g;
+    const s = this.stage;
+    if (s < S.MIDNIGHT || s >= S.CLIMAX_RUN || g.state !== 'playing') return;
+    this.scareT -= dt;
+    if (this.scareT > 0) return;
+    if (!g.canScare() || g.time - g.lastScare < 45) {
+      this.scareT = 5;
+      return;
+    }
+    this.scareT = 70 + Math.random() * 80;
+    const r = Math.random();
+    if (r < 0.35) g.scare('flicker');
+    else if (r < 0.65) g.scare('behind');
+    else if (!this.farFigure()) g.scare('flicker');
+  }
+
   update(dt: number) {
     const g = this.g;
     const s = this.stage;
     this.updateStreetBanks();
+    this.updateScares(dt);
     // prologue clock
     if (s === S.PROLOGUE) {
       this.clockMin += dt / 13;
@@ -2687,9 +2783,51 @@ export class Story {
   }
 
   // ======================================================================= MISC
+  /** objective text shown now, and the ones already done (journal) */
+  currentObjective: string | null = null;
+  objectiveLog: string[] = [];
+  /** where the waypoint points for the current objective (null = no marker) */
+  objectiveTarget: (() => THREE.Vector3 | null) | null = null;
+
   objective(t: string | null) {
-    this.g.ui.objective(t);
-    if (t) this.g.sfx('ui_note', undefined, 0.25, { bus: 'ui' });
+    const g = this.g;
+    if (t === this.currentObjective) return;
+    if (this.currentObjective && !this.objectiveLog.includes(this.currentObjective)) this.objectiveLog.push(this.currentObjective);
+    this.currentObjective = t;
+    this.objectiveTarget = t ? this.targetFor(t) : null;
+    g.ui.objective(t);
+    if (t) g.sfx('ui_note', undefined, 0.35, { bus: 'ui' });
+  }
+
+  /** the place each objective is about, for the waypoint marker */
+  private targetFor(t: string): (() => THREE.Vector3 | null) | null {
+    const g = this.g;
+    const it = (id: string) => () => g.world.interactables.find((i) => i.id === id)?.pos.clone() ?? null;
+    const at = (x: number, y: number, z: number) => () => V(x, y, z);
+    const rules: [RegExp, () => THREE.Vector3 | null][] = [
+      [/Espera tu taxi/, at(0, 1.2, 31)],
+      [/Dónde se fueron todos/, () => (this.flags.guardLight ? null : g.world.interactables.find((i) => i.id === 'flashlight')?.pos.clone() ?? null)],
+      [/Sal de la plaza/, at(0, 1.2, 31)],
+      [/iglesia está abierta|Huye a la iglesia/, at(0, 2, -37)],
+      [/confesionario/, it('confesionario')],
+      [/organillo/, it('organillo')],
+      [/Sigue a la niña/, () => (this.lucia?.visible ? this.lucia.pos.clone().setY(1.2) : V(-22, 1.2, -33))],
+      [/Explora la casa/, () => g.house.frontDoor.hingePos.clone().setY(1.5)],
+      [/radio de la cocina/, it('radio')],
+      [/puerta del patio/, () => g.house.lucyDoor.hingePos.clone().setY(1.5)],
+      [/Fotografía el cuarto/, at(-28.2, 1.6, -55.2)],
+      [/velas del candelabro/, () => g.church.candelabrum.candles[3].pos.clone()],
+      [/Sube al campanario/, () => (g.zoneName === 'tower' || g.zoneName === 'belfry' ? V(-11.25, 19.2, -38.7) : V(-6.8, 1.5, -39.4))],
+      [/mecanismo|Repara el mecanismo/, it('mecanismo')],
+      [/engranes en la relojería/, it('relojMaestro')],
+      [/Toca el alba/, at(-11.25, 19.6, -39.3)],
+      [/planta de luz/, it('planta')],
+      [/interruptores/, it('tablero')],
+      [/Ve al taxi/, it('taxi')],
+      [/Don Refugio/, it('refugio')],
+    ];
+    for (const [re, fn] of rules) if (re.test(t)) return fn;
+    return null;
   }
 
   hintOnce(key: string, html: string, dur = 4) {

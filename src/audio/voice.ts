@@ -169,4 +169,53 @@ export class VoiceSynth {
     mix.connect(g).connect(out);
     src.stop(t + d + 0.02);
   }
+
+  private lastBlip = 0;
+  /**
+   * Game-style dialogue blip (one per couple of letters): a short pitched "bip" whose pitch
+   * follows the character's voice and wobbles with the letter, Among Us / Animal Crossing style.
+   * Ghost/radio/whisper profiles get their own colour so you can tell who is speaking.
+   */
+  blip(prof: VoiceProfile, ch: string) {
+    const ctx = this.a.ctx;
+    const t = Math.max(ctx.currentTime, this.lastBlip + 0.035);
+    this.lastBlip = t;
+    const lc = ch.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const vowel = 'aeiou'.indexOf(lc);
+    // pitch: voice base up an octave+, vowels steady, consonants jitter
+    const base = prof.pitch * 2.1;
+    const f = base * (vowel >= 0 ? [1, 1.12, 1.26, 0.94, 0.86][vowel] : 0.95 + ((lc.charCodeAt(0) * 7) % 13) / 60);
+    const d = prof.whisper ? 0.07 : 0.055;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(1, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    let src: AudioScheduledSourceNode;
+    if (prof.whisper) {
+      const n = ctx.createBufferSource();
+      n.buffer = this.a.noiseBuffer;
+      src = n;
+      n.start(t, Math.random());
+    } else {
+      const o = ctx.createOscillator();
+      o.type = prof.ghost ? 'sine' : 'square';
+      o.frequency.setValueAtTime(f * (1 + (Math.random() - 0.5) * 0.05), t);
+      o.frequency.exponentialRampToValueAtTime(f * (prof.ghost ? 0.8 : 0.93), t + d);
+      src = o;
+      o.start(t);
+    }
+    const lp = ctx.createBiquadFilter();
+    lp.type = prof.whisper ? 'bandpass' : 'lowpass';
+    lp.frequency.value = prof.whisper ? f * 3 : prof.radio ? 1800 : 2600;
+    lp.Q.value = prof.whisper ? 3 : 0.7;
+    const vol = ctx.createGain();
+    vol.gain.value = (prof.volume ?? 0.25) * (prof.whisper ? 1.6 : prof.ghost ? 0.9 : 0.42);
+    src.connect(lp).connect(g).connect(vol).connect(this.a.sfx);
+    if (prof.ghost || prof.radio) {
+      const send = ctx.createGain();
+      send.gain.value = prof.ghost ? 0.8 : 0.2;
+      vol.connect(send).connect(this.a.reverbIn);
+    }
+    src.stop(t + d + 0.02);
+  }
 }

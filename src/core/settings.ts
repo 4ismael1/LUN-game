@@ -8,6 +8,7 @@ export interface Settings {
   quality: 'bajo' | 'medio' | 'alto';
   fov: number;
   brightness: number;
+  waypoint: boolean;
 }
 
 const KEY = 'ultima-noche-settings-v2';
@@ -22,6 +23,7 @@ const defaults: Settings = {
   quality: 'medio',
   fov: 72,
   brightness: 1.0,
+  waypoint: true,
 };
 
 function load(): Settings {

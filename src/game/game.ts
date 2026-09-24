@@ -7,6 +7,7 @@ import { AudioEngine } from '../audio/audio';
 import { Music } from '../audio/music';
 import { VoiceSynth, VOICES } from '../audio/voice';
 import { UI } from '../ui/ui';
+import { Phone } from '../ui/phone';
 import { Materials, TEXTURE_SETS } from '../world/materials';
 import { World, Interactable, HideSpot } from '../world/world';
 import { buildPlaza, PlazaRefs } from '../world/build/plaza';
@@ -45,6 +46,14 @@ const CORE_AUDIO = /^(ui_|step_|loop_(wind|crickets|flags)$|pickup_|flashlight_c
 const SOON_AUDIO = [/^loop_(crowd|traffic|fountain|electric)|car_pass|bus_pass|plates_clatter|metal_shutter|dog_bark/, /^bell|riser|power_down|stinger|creature/];
 const nextFrame = () => new Promise<void>((r) => setTimeout(r, 16));
 
+/** name-plate colour per voice: family warm, strangers amber, the dead red, radio/phone teal */
+function speakerColor(v: string) {
+  if (v === 'julian') return '#e9e1cf';
+  if (/desvelada|whisper|refugio$|madre|lucia/.test(v)) return '#d8322a';
+  if (/radio|phone/.test(v)) return '#6fb7b0';
+  return '#e0a040';
+}
+
 export type GameState = 'loading' | 'title' | 'playing' | 'paused' | 'dead' | 'ending';
 
 export interface Doc {
@@ -60,6 +69,7 @@ export class Game {
   music: Music;
   voice: VoiceSynth;
   ui: UI;
+  phone: Phone;
   input: Input;
   assets = new Assets();
   mats = new Materials();
@@ -125,6 +135,7 @@ export class Game {
     this.music = new Music(this.audio);
     this.voice = new VoiceSynth(this.audio);
     this.ui = new UI();
+    this.phone = new Phone(this.audio);
     this.input = new Input(this.engine.renderer.domElement);
     this.amb = new Ambience(this.audio);
     this.hand = new HandFlashlight(this.engine.camera, this.engine.scene);
@@ -136,6 +147,7 @@ export class Game {
       this.audio.play(n, { bus: 'ui', volume: k === 'hover' ? 0.25 : 0.5, reverb: 0 });
     };
     this.ui.onAction = (a) => this.onUIAction(a);
+    this.ui.onBlip = (v, ch) => this.voice.blip(VOICES[v] ?? VOICES.julian, ch);
     this.photoCanvas.width = 480;
     this.photoCanvas.height = 360;
     (window as any).__drawSymbol = drawSymbol;
@@ -434,6 +446,8 @@ export class Game {
     this.ui.hideView(null);
     this.input.exitLock();
     this.hand.model.visible = false;
+    this.phone.reset();
+    this.ui.waypoint(0, 0, false);
     this.ui.show('title');
     this.ui.fade(0, 0.8);
     (document.getElementById('btn-continue') as HTMLElement).classList.toggle('hidden', !this.story.hasSave());
@@ -471,6 +485,8 @@ export class Game {
     this.ui.clearSubs();
     this.cameraRaised = false;
     this.tasks.reset();
+    this.phone.reset();
+    this.ui.letterbox(false);
     init();
     this.input.requestLock();
     setTimeout(() => this.ui.fade(0, 1.6), 150);
@@ -541,6 +557,7 @@ export class Game {
     const detail = document.getElementById('inv-detail')!;
     const docs = document.getElementById('inv-docs')!;
     const photos = document.getElementById('inv-photos')!;
+    const journal = document.getElementById('inv-journal')!;
     const tabs = document.querySelectorAll<HTMLButtonElement>('.inv-tab');
     const showTab = (t: string) => {
       this.invTab = t;
@@ -548,6 +565,7 @@ export class Game {
       grid.classList.toggle('hidden', t !== 'items');
       docs.classList.toggle('hidden', t !== 'docs');
       photos.classList.toggle('hidden', t !== 'photos');
+      journal.classList.toggle('hidden', t !== 'journal');
       detail.classList.toggle('hidden', t !== 'items');
     };
     tabs.forEach(
@@ -634,6 +652,15 @@ export class Game {
       first.classList.add('sel');
       renderDetail(ids[0]);
     }
+    {
+      const esc = (t: string) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+      const now = this.story.currentObjective;
+      const log = [...this.story.objectiveLog].reverse();
+      journal.innerHTML =
+        `<h4>Ahora</h4><p class="now">${now ? esc(now) : '…'}</p>` +
+        (log.length ? `<h4>Hecho</h4><ol>${log.map((l) => `<li>${esc(l)}</li>`).join('')}</ol>` : '') +
+        `<p class="mem-row">✦ Recuerdos: ${this.memories().length} / 5</p>`;
+    }
     docs.innerHTML = this.docs.length ? '' : '<div class="note">Todavía no has leído nada.</div>';
     for (const d of this.docs) {
       const b = document.createElement('button');
@@ -675,13 +702,29 @@ export class Game {
 
   // ---------------------------------------------------------------- dialogue
   /** speak a line with babble voice and subtitle */
-  async say(who: string, text: string, voiceKey: string, pos?: THREE.Vector3, minDur = 0) {
+  async say(who: string, text: string, voiceKey: string, _pos?: THREE.Vector3, minDur = 0) {
     const gen = this.tasks.gen;
-    const prof = VOICES[voiceKey] ?? VOICES.julian;
-    const d = this.voice.speak(text, prof, pos);
-    await this.ui.sub(who, text, Math.max(minDur, d * 0.9 + 0.35, 1.3 + text.length * 0.036));
+    await this.ui.sub(who, text, Math.max(minDur, 1.3 + text.length * 0.036), false, voiceKey, speakerColor(voiceKey));
     this.tasks.check(gen);
   }
+  /**
+   * An incoming call: rings until answered with E (or gives up after `timeout` s),
+   * then plays the lines. Returns whether it was answered.
+   */
+  async call(from: string, lines: [string, string, string][], opts: { hint?: boolean; status?: string; timeout?: number } = {}) {
+    const gen = this.tasks.gen;
+    if (opts.hint) this.ui.hint('<kbd>E</kbd> contestar el teléfono', 5);
+    const answered = await Promise.race([this.phone.ring(from, opts.status).then(() => true), this.tasks.wait(opts.timeout ?? 16).then(() => false)]);
+    this.tasks.check(gen);
+    if (!answered) {
+      this.phone.reset();
+      return false;
+    }
+    for (const [who, text, voice] of lines) await this.say(who, text, voice);
+    this.phone.endCall();
+    return true;
+  }
+
   async think(text: string, dur?: number) {
     const gen = this.tasks.gen;
     await this.ui.sub('', text, dur ?? Math.max(2.0, 1.1 + text.length * 0.045), true);
@@ -757,7 +800,7 @@ export class Game {
           this.take('pilas');
           this.battery = 1;
           this.sfx('switch_click', undefined, 0.6);
-          this.ui.toast('Linterna', 'Cambiaste las pilas.');
+          this.ui.hint('Cambiaste las pilas de la linterna', 2.5);
         } else {
           this.flashOn = false;
           this.ui.hint('La linterna se apagó. Busca pilas.', 3);
@@ -873,10 +916,36 @@ export class Game {
     this.story.puzzles.close(false, true);
     this.overlay = null;
     const e = this.entity;
-    this.player.lookOverride = { target: new THREE.Vector3(e.pos.x, 2.1, e.pos.z), strength: 12 };
-    e.sound.scream(e.pos.clone().setY(2));
-    this.player.camShake = 1;
-    this.ui.flash(0.4, 0.3);
+    this.phone.reset();
+    this.ui.letterbox(false);
+    // she lunges at the camera: placed just in front, then rushes the last metre
+    const fwd = this.player.forward;
+    const start = this.player.pos.clone().addScaledVector(fwd, 1.6);
+    if (e.root.visible) start.copy(e.pos).lerp(this.player.pos, Math.max(0, 1 - 1.6 / Math.max(1.6, e.pos.distanceTo(this.player.pos))));
+    e.place(start, Math.atan2(this.player.pos.x - start.x, this.player.pos.z - start.z));
+    e.setState('inactive');
+    this.maskGlow(true);
+    const end = this.player.pos.clone().addScaledVector(new THREE.Vector3(start.x - this.player.pos.x, 0, start.z - this.player.pos.z).normalize(), 0.8);
+    const t0 = performance.now();
+    const lunge = () => {
+      const k = Math.min(1, (performance.now() - t0) / 260);
+      e.root.position.lerpVectors(start, end, k * k);
+      // keep the face in frame as she closes in
+      if (this.player.lookOverride) this.player.lookOverride.target.set(e.root.position.x, 1.9, e.root.position.z);
+      if (k < 1) requestAnimationFrame(lunge);
+    };
+    setTimeout(lunge, 120);
+    this.player.lookOverride = { target: new THREE.Vector3(start.x, 1.95, start.z), strength: 16 };
+    e.sound.scream(start.clone().setY(2));
+    this.sfx('stinger_low', undefined, 0.9);
+    this.player.camShake = 1.3;
+    setTimeout(() => {
+      const s = document.getElementById('scare')!;
+      s.classList.remove('hit');
+      void s.offsetWidth;
+      s.classList.add('hit');
+      this.ui.flash(0.35, 0.2);
+    }, 360);
     this.music.set('chase', 0, 0.5);
     this.music.set('danger', 0, 0.8);
     setTimeout(() => {
@@ -893,9 +962,100 @@ export class Game {
       (document.getElementById('go-sub') as HTMLElement).textContent = reason;
       this.ui.show('gameover');
       this.audio.duck(1, 1);
+      this.maskGlow(false);
       this.entity.hide();
       this.tasks.reset();
     }, 1900);
+  }
+
+  // ---------------------------------------------------------------- scares
+  private behindScare: { yaw: number; until: number } | null = null;
+  lastScare = -999;
+
+  /** can a scare play now without breaking a scripted moment or a chase? */
+  canScare() {
+    const e = this.entity;
+    return this.state === 'playing' && !this.overlay && !this.player.hidden && e.mode === 'off' && !this.story.scriptedChase && !this.phone.busy && !this.ui.subIsDialogue;
+  }
+
+  /**
+   * Jump scares.
+   *  face    — her face right in front of you for a split second, scream, red flash
+   *  behind  — footsteps and breathing behind you; turn around and she is there
+   *  flicker — the lights stutter, a whisper, a red pulse (a small one)
+   */
+  scare(kind: 'face' | 'behind' | 'flicker') {
+    const e = this.entity;
+    this.lastScare = this.time;
+    const cam = this.engine.camera;
+    const redPulse = () => {
+      const s = document.getElementById('scare')!;
+      s.classList.remove('hit');
+      void s.offsetWidth;
+      s.classList.add('hit');
+    };
+    if (kind === 'flicker') {
+      const L = this.world.lights;
+      let n = 0;
+      const tick = () => {
+        L.globalLevel = n % 2 ? 1 : 0.08;
+        if (++n < 9) setTimeout(tick, 50 + Math.random() * 110);
+        else L.globalLevel = 1;
+      };
+      tick();
+      if (this.flashOn) this.flashFlicker = 0.8;
+      this.sfx('electric_spark', undefined, 0.4);
+      this.sfx('whisper_' + (1 + Math.floor(Math.random() * 3)), cam.position.clone().add(new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize().multiplyScalar(1.5)), 0.5, { ref: 1.5 });
+      this.player.camShake = Math.max(this.player.camShake, 0.25);
+      redPulse();
+      return;
+    }
+    if (kind === 'behind') {
+      this.sfx('footsteps_behind', cam.position.clone().add(this.player.forward.clone().multiplyScalar(-3)), 0.6, { ref: 2 });
+      this.sfx('creature_breath', cam.position.clone().add(this.player.forward.clone().multiplyScalar(-1.5)), 0.5, { ref: 1.5 });
+      this.behindScare = { yaw: this.player.yaw, until: this.time + 5 };
+      return;
+    }
+    // face: she is suddenly right there
+    if (e.mode !== 'off') return;
+    const fwd = this.player.forward;
+    const p = this.player.pos.clone().addScaledVector(fwd, 1.25);
+    e.place(p, Math.atan2(-fwd.x, -fwd.z));
+    e.setState('inactive');
+    this.maskGlow(true);
+    e.sound.scream(p.clone().setY(2));
+    this.sfx('stinger_low', undefined, 0.8);
+    this.player.lookOverride = { target: new THREE.Vector3(p.x, 1.95, p.z), strength: 14 };
+    this.player.camShake = 1;
+    this.ui.flash(0.25, 0.25);
+    redPulse();
+    setTimeout(() => {
+      this.player.lookOverride = null;
+      this.maskGlow(false);
+      if (e.state === 'inactive') e.hide();
+      this.ui.flash(0.6, 0.5);
+    }, 420);
+  }
+
+  /** light her porcelain mask from within for a moment so the face reads in the dark */
+  private maskGlow(on: boolean) {
+    const m = this.entity.visual.mask.material as THREE.MeshStandardMaterial;
+    m.emissiveIntensity = on ? 1.5 : 0.25;
+  }
+
+  private updateScares() {
+    const b = this.behindScare;
+    if (!b) return;
+    if (this.time > b.until || !this.canScare()) {
+      this.behindScare = null;
+      return;
+    }
+    let d = Math.abs(this.player.yaw - b.yaw) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    if (d > 2.3) {
+      this.behindScare = null;
+      this.scare('face');
+    }
   }
 
   // ---------------------------------------------------------------- main loop
@@ -1006,6 +1166,8 @@ export class Game {
       if (this.entity.pos.distanceTo(p.hidden.exit) < 1.3) this.gameOver('Te vio esconderte.');
     }
     this.updateDanger(dt);
+    this.updateWaypoint();
+    this.updateScares();
     // stamina ui & breathing
     this.ui.stamina(p.stamina);
     const breathV = p.stamina < 0.45 ? (0.45 - p.stamina) * 1.2 : 0;
@@ -1015,6 +1177,43 @@ export class Game {
       this.breath.stop(1);
       this.breath = null;
     }
+  }
+
+  /** marker + distance towards the current objective (clamped to the screen edge when off-view) */
+  updateWaypoint() {
+    const fn = this.story.objectiveTarget;
+    const cam = this.engine.camera;
+    const p = fn && settings.waypoint && this.state === 'playing' && !this.overlay && !this.cameraRaised ? fn() : null;
+    if (!p) {
+      this.ui.waypoint(0, 0, false);
+      this.ui.objectiveDistance(null);
+      return;
+    }
+    const d = p.distanceTo(cam.position);
+    this.ui.objectiveDistance(d);
+    if (d < 2.2) {
+      this.ui.waypoint(0, 0, false);
+      return;
+    }
+    const W = window.innerWidth, H = window.innerHeight;
+    const v = p.clone().project(cam);
+    const behind = v.z > 1;
+    let x = ((v.x + 1) / 2) * W, y = ((1 - v.y) / 2) * H;
+    const m = 48;
+    let edge = behind || x < m || x > W - m || y < m || y > H - m;
+    if (edge) {
+      let dx = x - W / 2, dy = y - H / 2;
+      if (behind) {
+        dx = -dx;
+        dy = -dy;
+      }
+      if (Math.abs(dx) < 1e-3 && Math.abs(dy) < 1e-3) dy = 1;
+      const k = Math.min((W / 2 - m) / Math.abs(dx || 1e-3), (H / 2 - m) / Math.abs(dy || 1e-3));
+      x = W / 2 + dx * k;
+      y = H / 2 + dy * k;
+    }
+    edge = !!edge;
+    this.ui.waypoint(x, y, true, edge, `${Math.round(d)} m`);
   }
 
   playerLitLevel(): number {
@@ -1087,6 +1286,12 @@ export class Game {
     if (this.state !== 'playing' || this.overlay || !this.input.locked) {
       this.ui.prompt(null);
       this.ui.hold(null);
+      hideMarkers();
+      return;
+    }
+    // a ringing phone takes E before anything else
+    if (this.phone.ringing && this.input.hit('KeyE')) {
+      this.phone.answer();
       hideMarkers();
       return;
     }

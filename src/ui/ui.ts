@@ -10,7 +10,7 @@ export class UI {
   private subTimer = 0;
   private hintTimer = 0;
   private toastTimer = 0;
-  private subQueue: { who: string; text: string; dur: number; thought: boolean; resolve: () => void }[] = [];
+  private subQueue: { who: string; text: string; dur: number; thought: boolean; resolve: () => void; voice: string; color: string }[] = [];
   subActive = false;
   subIsDialogue = false;
   private subResolve: (() => void) | null = null;
@@ -124,7 +124,7 @@ export class UI {
     $('hud').classList.toggle('hidden', !v);
   }
 
-  objective(text: string | null) {
+  objective(text: string | null, announce = true) {
     const o = $('objective');
     if (!text) {
       o.classList.remove('show');
@@ -135,12 +135,36 @@ export class UI {
       $('obj-text').textContent = text;
       o.classList.add('show');
     }, 350);
+    if (announce) {
+      const b = $('obj-banner');
+      (b.querySelector('.ob-text') as HTMLElement).textContent = text;
+      b.classList.remove('show');
+      void b.offsetWidth;
+      b.classList.add('show');
+    }
+  }
+
+  objectiveDistance(m: number | null) {
+    $('obj-dist').textContent = m === null ? '' : `${Math.round(m)} m`;
+  }
+
+  /** screen-space marker for the current objective; edge = clamped to the screen border */
+  waypoint(x: number, y: number, show: boolean, edge = false, label = '') {
+    const w = $('waypoint');
+    w.classList.toggle('show', show);
+    if (!show) return;
+    w.classList.toggle('edge', edge);
+    w.style.transform = `translate(${x}px, ${y}px)`;
+    const sp = w.querySelector('span') as HTMLElement;
+    if (sp.textContent !== label) sp.textContent = label;
   }
 
   clock(text: string, dim = false) {
     const c = $('clock');
     c.textContent = text;
     c.style.opacity = dim ? '0.35' : '1';
+    const pt = document.querySelector('#phone .ph-time');
+    if (pt) pt.textContent = text.replace(/\s*[ap]\.\s?m\./, '');
   }
 
   prompt(html: string | null) {
@@ -206,10 +230,17 @@ export class UI {
     (s.firstElementChild as HTMLElement).style.width = Math.round(f * 100) + '%';
   }
 
-  /** queue a subtitle line; resolves when it has finished */
-  sub(who: string, text: string, dur: number, thought = false): Promise<void> {
+  /** per-character "voice" blip (set by the game); key = voice profile */
+  onBlip: (voice: string, ch: string) => void = () => {};
+
+  /**
+   * Queue a line. Spoken lines (who set, not thought) show in the dialogue box with a
+   * typewriter reveal and blips; thoughts are a quiet italic subtitle.
+   * Resolves when the line is finished (auto-advance or E).
+   */
+  sub(who: string, text: string, dur: number, thought = false, voice = '', color = ''): Promise<void> {
     return new Promise((resolve) => {
-      const item = { who, text, dur, thought, resolve };
+      const item = { who, text, dur, thought, resolve, voice, color };
       if (who && !thought) {
         // spoken dialogue jumps ahead of queued inner thoughts and cuts the current one
         const firstThought = this.subQueue.findIndex((q) => q.thought);
@@ -224,40 +255,90 @@ export class UI {
       if (!this.subActive) this.nextSub();
     });
   }
+  private typing: (() => void) | null = null;
   private nextSub() {
     const s = $('subs');
+    const box = $('dlg');
     const n = this.subQueue.shift();
     if (!n) {
       this.subActive = false;
       s.classList.remove('show');
+      box.classList.remove('show', 'done');
       return;
     }
     this.subActive = true;
-    this.subIsDialogue = !!n.who;
-    if (settings.subtitles || n.thought || n.who) {
-      s.innerHTML = (n.who ? `<span class="who">${n.who}</span>` : '') + n.text + (n.who ? ' <span class="skip">E ›</span>' : '');
-      s.classList.toggle('thought', n.thought);
-      s.classList.add('show');
-    }
+    this.subIsDialogue = !!n.who && !n.thought;
     clearTimeout(this.subTimer);
     let done = false;
+    let typeT = 0;
     const finish = () => {
       if (done) return;
       done = true;
       clearTimeout(this.subTimer);
+      clearTimeout(typeT);
+      this.typing = null;
       this.subResolve = null;
       s.classList.remove('show');
+      // keep the box up between consecutive lines so it doesn't blink
+      const nextIsDialogue = this.subQueue[0] && this.subQueue[0].who && !this.subQueue[0].thought;
+      if (!nextIsDialogue) box.classList.remove('show');
+      box.classList.remove('done');
       n.resolve();
-      window.setTimeout(() => this.nextSub(), 120);
+      window.setTimeout(() => this.nextSub(), nextIsDialogue ? 60 : 140);
     };
     this.subResolve = finish;
-    this.subTimer = window.setTimeout(finish, n.dur * 1000);
+    if (this.subIsDialogue) {
+      const name = box.querySelector('.dlg-name') as HTMLElement;
+      const txt = box.querySelector('.dlg-text') as HTMLElement;
+      name.textContent = n.who;
+      box.style.setProperty('--spk', n.color || '#e0a040');
+      txt.textContent = '';
+      box.classList.remove('done');
+      box.classList.add('show');
+      const chars = [...n.text];
+      let i = 0;
+      const hold = Math.max(1.3, 0.9 + n.text.length * 0.02);
+      const complete = () => {
+        clearTimeout(typeT);
+        txt.textContent = n.text;
+        this.typing = null;
+        box.classList.add('done');
+        this.subTimer = window.setTimeout(finish, Math.max(hold, n.dur * 0.35) * 1000);
+      };
+      const step = () => {
+        if (done) return;
+        if (i >= chars.length) return complete();
+        const ch = chars[i++];
+        txt.textContent += ch;
+        if (/[a-záéíóúñü]/i.test(ch) && i % 2 === 1) this.onBlip(n.voice, ch);
+        const pause = /[.!?…]/.test(ch) ? 260 : /[,;:—]/.test(ch) ? 120 : 24;
+        typeT = window.setTimeout(step, pause);
+      };
+      this.typing = complete;
+      step();
+    } else {
+      if (settings.subtitles || n.thought) {
+        s.textContent = n.text;
+        s.classList.toggle('thought', n.thought);
+        s.classList.add('show');
+      }
+      this.subTimer = window.setTimeout(finish, n.dur * 1000);
+    }
   }
-  /** advance the current subtitle line (dialogue skip) */
+  /** E on a line: first completes the typewriter, then advances */
   skipSub(): boolean {
     if (!this.subActive || !this.subResolve) return false;
+    if (this.typing) {
+      this.typing();
+      return true;
+    }
     this.subResolve();
     return true;
+  }
+
+  letterbox(on: boolean) {
+    $('letterbox').classList.toggle('on', on);
+    document.body.classList.toggle('cine', on);
   }
 
   itemCard(icon: HTMLCanvasElement, title: string, memory = false) {
@@ -277,8 +358,11 @@ export class UI {
     this.subQueue.forEach((q) => q.resolve());
     this.subQueue = [];
     clearTimeout(this.subTimer);
+    this.typing = null;
     this.subActive = false;
     $('subs').classList.remove('show');
+    $('dlg').classList.remove('show', 'done');
+    this.letterbox(false);
   }
 
   fade(to: number, secs = 1.2) {

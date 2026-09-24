@@ -10,6 +10,7 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="grain" aria-hidden="true"></div>
 
     <!-- LOADING -->
     <div id="loading" class="screen show">
@@ -33,7 +34,7 @@
       <div class="title-wrap">
         <div class="papel-row big" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <h1 class="game-title">La Última Noche</h1>
-        <p class="subtitle">Jardín del Carmen · 1 de febrero · 11:52 p.m.</p>
+        <p class="subtitle">Jardín del Carmen · 1 de febrero</p>
         <nav class="menu" id="main-menu">
           <button data-act="play">Jugar</button>
           <button data-act="continue" id="btn-continue" class="hidden">Continuar</button>
@@ -78,6 +79,7 @@
         <div class="setting"><label>Calidad gráfica</label>
           <select data-set="quality"><option value="bajo">Baja</option><option value="medio">Media</option><option value="alto">Alta</option></select></div>
         <div class="setting"><label>Subtítulos</label><input type="checkbox" data-set="subtitles" /></div>
+        <div class="setting"><label>Marcador de objetivo</label><input type="checkbox" data-set="waypoint" /></div>
         <div class="setting"><label>Invertir eje Y</label><input type="checkbox" data-set="invertY" /></div>
         <button class="back" data-act="back">Volver</button>
       </div>
@@ -109,7 +111,9 @@
 
     <!-- HUD -->
     <div id="hud" class="hidden">
-      <div id="objective"><span class="obj-label">Objetivo</span><span id="obj-text"></span></div>
+      <div id="objective"><span class="obj-label">Objetivo</span><span id="obj-text"></span><span id="obj-dist"></span></div>
+      <div id="obj-banner"><span class="ob-kicker">Nuevo objetivo</span><span class="ob-text"></span></div>
+      <div id="waypoint"><i></i><span></span></div>
       <div id="clock"></div>
       <div id="status"><div id="battery"><i></i></div><div id="film"></div></div>
       <div id="crosshair"></div>
@@ -117,6 +121,13 @@
       <div id="hold"><i></i></div>
       <div id="hint"></div>
       <div id="subs"></div>
+      <div id="dlg"><div class="dlg-name"></div><div class="dlg-text"></div><div class="dlg-next">E</div></div>
+      <div id="phone">
+        <div class="ph-body">
+          <div class="ph-top"><span class="ph-time">11:52</span><span class="ph-sig"><i></i><i></i><i></i><i></i></span></div>
+          <div class="ph-screen"></div>
+        </div>
+      </div>
       <div id="toast"></div>
       <div id="stamina"><i></i></div>
       <div id="itemcard"><div class="ring"><canvas width="64" height="64"></canvas></div><div class="nm"></div><div class="sub">Guardado en el inventario · <kbd>Tab</kbd></div></div>
@@ -124,17 +135,20 @@
     </div>
     <div id="viewfinder" class="hidden"><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div><span id="vf-count"></span></div>
     <div id="hideview" class="hidden"></div>
+    <div id="letterbox"><i></i><i></i></div>
+    <div id="scare"></div>
     <div id="flash"></div>
     <div id="fade"></div>
 
     <!-- INVENTORY -->
     <div id="inventory" class="screen panel-screen">
       <div class="inv">
-        <div class="inv-tabs"><button class="inv-tab on" data-tab="items">Objetos</button><button class="inv-tab" data-tab="docs">Notas</button><button class="inv-tab" data-tab="photos">Fotos</button><span id="inv-memories"></span></div>
+        <div class="inv-tabs"><button class="inv-tab on" data-tab="items">Objetos</button><button class="inv-tab" data-tab="docs">Notas</button><button class="inv-tab" data-tab="photos">Fotos</button><button class="inv-tab" data-tab="journal">Diario</button><span id="inv-memories"></span></div>
         <div class="inv-body">
           <div class="inv-slots" id="inv-items"></div>
           <div class="inv-docs hidden" id="inv-docs"></div>
           <div class="inv-photos hidden" id="inv-photos"></div>
+          <div class="inv-journal hidden" id="inv-journal"></div>
           <div class="inv-detail" id="inv-detail"></div>
         </div>
         <div class="inv-foot"><span><kbd>Tab</kbd> cerrar</span><button class="back" data-act="close-inv">Cerrar</button></div>
