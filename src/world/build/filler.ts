@@ -100,12 +100,16 @@ export function buildFiller(w: World, streets: LoopStreet[]) {
     for (let i = 0; i < nx; i++) {
       const x = X0 + (i + 0.5) * C, z = Z0 + (j + 0.5) * C;
       let ok = true;
+      // keep a 1.2 m margin around every playable space: doorways and the seams between
+      // adjacent spaces (church door, tower, corral…) must never be walled in
+      const M = 1.2;
       for (const [a, b, c, d] of playable)
-        if (x > a && x < c && z > b && z < d) {
+        if (x > a - M && x < c + M && z > b - M && z < d + M) {
           ok = false;
           break;
         }
       if (ok && w.col.solidAt(x, z, 0.5, 2.5, 0.05)) ok = false;
+      if (ok) for (const dr of w.doors) if (Math.hypot(x - dr.hingePos.x, z - dr.hingePos.z) < 2.5) ok = false;
       free[j * nx + i] = ok ? 1 : 0;
     }
   // greedy rectangles, at most ~12 m per side so the skyline varies

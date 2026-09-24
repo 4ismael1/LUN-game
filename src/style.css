@@ -389,3 +389,10 @@ body.cine #objective, body.cine #clock, body.cine #waypoint, body.cine #status, 
 .inv { max-width: 95vw; }
 .inv-body > * { min-width: 0; }
 @media (max-width: 860px) { .inv-body { grid-template-columns: 1fr 240px; } }
+
+/* phone up: dialogue and thoughts slide left so the handset never covers the text */
+#dlg, #subs { transition: opacity 0.2s, transform 0.25s, left 0.4s, width 0.4s; }
+body.phone-up #dlg, body.phone-up #subs { left: calc(50% - min(140px, 16vh)); width: min(720px, calc(100vw - 340px)); }
+body.phone-up #hint { left: calc(50% - min(140px, 16vh)); }
+#obj-dist.act { font-family: var(--type); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: none; color: var(--amber); margin-top: 6px; }
+#obj-dist.act::before { content: '▸ '; color: var(--blood-hi); }

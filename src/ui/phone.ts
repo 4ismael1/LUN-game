@@ -29,12 +29,14 @@ export class Phone {
   private show(dur = 0) {
     clearTimeout(this.hideT);
     this.el.classList.add('show');
+    document.body.classList.add('phone-up');
     if (dur > 0) this.hideT = window.setTimeout(() => this.hide(), dur * 1000);
   }
 
   hide() {
     clearTimeout(this.hideT);
     this.el.classList.remove('show', 'ring');
+    document.body.classList.remove('phone-up');
   }
 
   /** a text message: the phone comes up, buzzes and shows the thread */

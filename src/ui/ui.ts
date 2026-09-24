@@ -144,8 +144,12 @@ export class UI {
     }
   }
 
-  objectiveDistance(m: number | null) {
-    $('obj-dist').textContent = m === null ? '' : `${Math.round(m)} m`;
+  /** line under the objective: distance while travelling, the action once there */
+  objectiveDistance(text: string | null) {
+    const el = $('obj-dist');
+    const t = text ?? '';
+    if (el.textContent !== t) el.textContent = t;
+    el.classList.toggle('act', !!t && !/^\d+ m$/.test(t));
   }
 
   /** screen-space marker for the current objective; edge = clamped to the screen border */
@@ -256,10 +260,27 @@ export class UI {
     });
   }
   private typing: (() => void) | null = null;
+  private holdThoughts = false;
+  /** during a conversation or call, inner thoughts wait until it's over */
+  setHoldThoughts(v: boolean) {
+    if (this.holdThoughts === v) return;
+    this.holdThoughts = v;
+    if (!v && !this.subActive && this.subQueue.length) this.nextSub();
+  }
   private nextSub() {
     const s = $('subs');
     const box = $('dlg');
-    const n = this.subQueue.shift();
+    let idx = 0;
+    if (this.holdThoughts) {
+      idx = this.subQueue.findIndex((q) => !q.thought);
+      if (idx < 0) {
+        this.subActive = false;
+        s.classList.remove('show');
+        box.classList.remove('show', 'done');
+        return;
+      }
+    }
+    const n = this.subQueue.splice(idx, 1)[0];
     if (!n) {
       this.subActive = false;
       s.classList.remove('show');

@@ -429,7 +429,7 @@ export class Story {
     const talkable = ['beto', 'chayo', 'chuy', 'chema', 'panadero', 'lupe', 'compa1'];
     for (const id of talkable) {
       const n = this.npc[id];
-      this.it('talk:' + id, n.pos.clone(), () => `Hablar con ${n.def.name}`, () => this.stage === S.PROLOGUE && n.visible && !n.talking && !this.flags.midnightStarted, () => this.talk(id), { radius: 0.7, reach: 2.6 });
+      this.it('talk:' + id, n.pos.clone(), () => `Hablar con ${n.def.name}`, () => this.stage === S.PROLOGUE && n.visible && !n.talking && !this.flags.midnightStarted && !this.g.convo, () => this.talk(id), { radius: 0.7, reach: 2.6 });
       // follow npc
       const itm = g.world.interactables[g.world.interactables.length - 1];
       g.world.updaters.push(() => itm.pos.set(n.pos.x, n.pos.y + (n.baseAnim === 'sitting' ? 1.0 : 1.45), n.pos.z));
@@ -1179,6 +1179,7 @@ export class Story {
     const g = this.g;
     const n = this.npc[id];
     n.talking = true;
+    g.convo = 'npc';
     g.ui.letterbox(true);
     const p = n.pos.clone().setY(n.pos.y + 1.6);
     g.player.lookOverride = { target: n.pos.clone().setY(n.pos.y + (n.baseAnim === 'sitting' ? 1.0 : 1.55)), strength: 5 };
@@ -1231,6 +1232,7 @@ export class Story {
       }
     } finally {
       n.talking = false;
+      if (g.convo === 'npc') g.convo = null;
       g.ui.letterbox(false);
       this.prologueDoneTalk.add(id);
     }
@@ -2631,7 +2633,9 @@ export class Story {
     this.updateScares(dt);
     // prologue clock
     if (s === S.PROLOGUE) {
-      this.clockMin += dt / 13;
+      // waiting at the pickup spot: time runs faster so nobody stands there for minutes
+      const atPickup = Math.hypot(g.player.pos.x, g.player.pos.z - 31) < 6;
+      this.clockMin += (dt / 13) * (atPickup ? 4 : 1);
       const hh = Math.floor(this.clockMin / 60) % 24;
       const mm = Math.floor(this.clockMin % 60);
       const h12 = hh % 12 === 0 ? 12 : hh % 12;
@@ -2788,45 +2792,56 @@ export class Story {
   objectiveLog: string[] = [];
   /** where the waypoint points for the current objective (null = no marker) */
   objectiveTarget: (() => THREE.Vector3 | null) | null = null;
+  /** what to do once at the target (shown under the objective when you get close) */
+  objectiveArrive: string | null = null;
+  arrived = false;
 
   objective(t: string | null) {
     const g = this.g;
     if (t === this.currentObjective) return;
     if (this.currentObjective && !this.objectiveLog.includes(this.currentObjective)) this.objectiveLog.push(this.currentObjective);
     this.currentObjective = t;
+    this.arrived = false;
+    this.objectiveArrive = null;
     this.objectiveTarget = t ? this.targetFor(t) : null;
     g.ui.objective(t);
     if (t) g.sfx('ui_note', undefined, 0.35, { bus: 'ui' });
   }
 
-  /** the place each objective is about, for the waypoint marker */
+  /** the place each objective is about (waypoint) and what to do once you get there */
   private targetFor(t: string): (() => THREE.Vector3 | null) | null {
+    const r = this.objectiveRule(t);
+    this.objectiveArrive = r?.[2] ?? null;
+    return r?.[1] ?? null;
+  }
+
+  private objectiveRule(t: string): [RegExp, () => THREE.Vector3 | null, string?] | null {
     const g = this.g;
     const it = (id: string) => () => g.world.interactables.find((i) => i.id === id)?.pos.clone() ?? null;
     const at = (x: number, y: number, z: number) => () => V(x, y, z);
-    const rules: [RegExp, () => THREE.Vector3 | null][] = [
-      [/Espera tu taxi/, at(0, 1.2, 31)],
-      [/Dónde se fueron todos/, () => (this.flags.guardLight ? null : g.world.interactables.find((i) => i.id === 'flashlight')?.pos.clone() ?? null)],
-      [/Sal de la plaza/, at(0, 1.2, 31)],
-      [/iglesia está abierta|Huye a la iglesia/, at(0, 2, -37)],
-      [/confesionario/, it('confesionario')],
-      [/organillo/, it('organillo')],
+    const rules: [RegExp, () => THREE.Vector3 | null, string?][] = [
+      [/Espera tu taxi/, at(0, 1.2, 30.5), 'Espera aquí. El taxi llega a las 12:05.'],
+      [/Dónde se fueron todos/, () => (this.flags.guardLight ? null : g.world.interactables.find((i) => i.id === 'flashlight')?.pos.clone() ?? null), 'Recoge la linterna del suelo (E).'],
+      [/Sal de la plaza/, at(0, 1.2, 31), 'Sigue la calle hasta el final.'],
+      [/iglesia está abierta|Huye a la iglesia/, at(0, 2, -37), 'Entra a la iglesia.'],
+      [/confesionario/, it('confesionario'), 'Entra al confesionario (E) y escucha.'],
+      [/organillo/, it('organillo'), 'Sube al kiosco y examina el organillo (E).'],
       [/Sigue a la niña/, () => (this.lucia?.visible ? this.lucia.pos.clone().setY(1.2) : V(-22, 1.2, -33))],
-      [/Explora la casa/, () => g.house.frontDoor.hingePos.clone().setY(1.5)],
-      [/radio de la cocina/, it('radio')],
-      [/puerta del patio/, () => g.house.lucyDoor.hingePos.clone().setY(1.5)],
-      [/Fotografía el cuarto/, at(-28.2, 1.6, -55.2)],
-      [/velas del candelabro/, () => g.church.candelabrum.candles[3].pos.clone()],
-      [/Sube al campanario/, () => (g.zoneName === 'tower' || g.zoneName === 'belfry' ? V(-11.25, 19.2, -38.7) : V(-6.8, 1.5, -39.4))],
-      [/mecanismo|Repara el mecanismo/, it('mecanismo')],
-      [/engranes en la relojería/, it('relojMaestro')],
-      [/Toca el alba/, at(-11.25, 19.6, -39.3)],
-      [/planta de luz/, it('planta')],
-      [/interruptores/, it('tablero')],
-      [/Ve al taxi/, it('taxi')],
-      [/Don Refugio/, it('refugio')],
+      [/Explora la casa/, () => g.house.frontDoor.hingePos.clone().setY(1.5), 'Revisa la cocina, las notas y los cuartos.'],
+      [/radio de la cocina/, it('radio'), 'Gira el dial y detente en cada estación.'],
+      [/puerta del patio/, () => g.house.lucyDoor.hingePos.clone().setY(1.5), 'Cruza la puerta del patio.'],
+      [/Fotografía el cuarto/, at(-28.2, 1.6, -55.2), 'Levanta la cámara (Q) y toma la foto (clic).'],
+      [/velas del candelabro/, () => g.church.candelabrum.candles[3].pos.clone(), 'Enciende las velas como en la foto (Tab → Fotos).'],
+      [/Sube al campanario/, () => (g.zoneName === 'tower' || g.zoneName === 'belfry' ? V(-11.25, 19.2, -38.7) : V(-6.8, 1.5, -39.4)), 'Sube las escaleras de la torre hasta arriba.'],
+      [/mecanismo|Repara el mecanismo/, it('mecanismo'), 'Usa el mecanismo (E).'],
+      [/engranes en la relojería/, it('relojMaestro'), 'Pon en el reloj maestro la hora en que se paró el reloj de la iglesia.'],
+      [/Toca el alba/, at(-11.25, 19.6, -39.3), 'Lee la inscripción y toca las campanas en ese orden (E).'],
+      [/planta de luz/, it('planta'), 'Arranca la planta (E): jala cuando la marca pase por la zona clara.'],
+      [/interruptores/, it('tablero'), 'Abre el tablero (E). No subas todas a la vez.'],
+      [/Ve al taxi/, it('taxi'), 'Sube al taxi (E).'],
+      [/Don Refugio/, it('refugio'), 'Habla con él (E).'],
     ];
-    for (const [re, fn] of rules) if (re.test(t)) return fn;
+    for (const r of rules) if (r[0].test(t)) return r;
     return null;
   }
 

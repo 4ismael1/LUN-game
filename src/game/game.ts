@@ -70,6 +70,8 @@ export class Game {
   voice: VoiceSynth;
   ui: UI;
   phone: Phone;
+  /** who owns the dialogue box right now: an NPC conversation or a phone call (never both) */
+  convo: 'npc' | 'call' | null = null;
   input: Input;
   assets = new Assets();
   mats = new Materials();
@@ -486,6 +488,7 @@ export class Game {
     this.cameraRaised = false;
     this.tasks.reset();
     this.phone.reset();
+    this.convo = null;
     this.ui.letterbox(false);
     init();
     this.input.requestLock();
@@ -713,16 +716,23 @@ export class Game {
    */
   async call(from: string, lines: [string, string, string][], opts: { hint?: boolean; status?: string; timeout?: number } = {}) {
     const gen = this.tasks.gen;
-    if (opts.hint) this.ui.hint('<kbd>E</kbd> contestar el teléfono', 5);
-    const answered = await Promise.race([this.phone.ring(from, opts.status).then(() => true), this.tasks.wait(opts.timeout ?? 16).then(() => false)]);
-    this.tasks.check(gen);
-    if (!answered) {
-      this.phone.reset();
-      return false;
+    // never ring over a conversation or spoken lines: wait for the dialogue box to be free
+    await this.until(() => !this.convo && !this.ui.subActive && !this.overlay, 60);
+    this.convo = 'call';
+    try {
+      if (opts.hint) this.ui.hint('<kbd>E</kbd> contestar el teléfono', 5);
+      const answered = await Promise.race([this.phone.ring(from, opts.status).then(() => true), this.tasks.wait(opts.timeout ?? 16).then(() => false)]);
+      this.tasks.check(gen);
+      if (!answered) {
+        this.phone.reset();
+        return false;
+      }
+      for (const [who, text, voice] of lines) await this.say(who, text, voice);
+      this.phone.endCall();
+      return true;
+    } finally {
+      if (this.convo === 'call') this.convo = null;
     }
-    for (const [who, text, voice] of lines) await this.say(who, text, voice);
-    this.phone.endCall();
-    return true;
   }
 
   async think(text: string, dur?: number) {
@@ -1168,6 +1178,7 @@ export class Game {
     this.updateDanger(dt);
     this.updateWaypoint();
     this.updateScares();
+    this.ui.setHoldThoughts(!!this.convo);
     // stamina ui & breathing
     this.ui.stamina(p.stamina);
     const breathV = p.stamina < 0.45 ? (0.45 - p.stamina) * 1.2 : 0;
@@ -1183,15 +1194,23 @@ export class Game {
   updateWaypoint() {
     const fn = this.story.objectiveTarget;
     const cam = this.engine.camera;
-    const p = fn && settings.waypoint && this.state === 'playing' && !this.overlay && !this.cameraRaised ? fn() : null;
+    const p = fn && this.state === 'playing' && !this.overlay ? fn() : null;
     if (!p) {
       this.ui.waypoint(0, 0, false);
       this.ui.objectiveDistance(null);
       return;
     }
     const d = p.distanceTo(cam.position);
-    this.ui.objectiveDistance(d);
-    if (d < 2.2) {
+    const st = this.story;
+    // close enough: the marker gives way to what to do here
+    if (d < 4.5 && st.objectiveArrive) {
+      if (!st.arrived) {
+        st.arrived = true;
+        this.ui.hint(st.objectiveArrive, 6);
+      }
+    }
+    this.ui.objectiveDistance(st.arrived && st.objectiveArrive ? st.objectiveArrive : `${Math.round(d)} m`);
+    if (d < 4.5 || !settings.waypoint || this.cameraRaised) {
       this.ui.waypoint(0, 0, false);
       return;
     }
