@@ -109,6 +109,7 @@ export class Game {
   private photoCanvas = document.createElement('canvas');
   private tmpV = new THREE.Vector3();
   stepCount = 0;
+  cullT = 0;
   lastStep = 0;
 
   constructor(container: HTMLElement) {
@@ -204,6 +205,7 @@ export class Game {
     w.zone('patio', -35, -68, -28, -58, { priority: 5, reverb: [0.35, 0.05, 0], footstep: 'stone' });
     w.zone('stage', 30, -12, 50, 12, { priority: 2, reverb: [0.25, 0.2, 0], footstep: 'stone' });
     w.finalize();
+    w.setupCulling(['props', 'bulbs', 'signs', 'doors', 'market', 'callejon', 'stage', 'house']);
     // nav grid for the entity
     this.nav = new NavGrid(w.col, w.navBounds.minX, w.navBounds.minZ, w.navBounds.maxX, w.navBounds.maxZ);
     this.nav.build((x, z) => (x > -15 && x < -6.5 && z > -43 && z < -35.5)); // not inside tower
@@ -773,6 +775,11 @@ export class Game {
       this.update(dt);
     }
     // world animation always runs (even paused we keep sky etc. still)
+    this.cullT -= dt;
+    if (this.cullT <= 0) {
+      this.cullT = 0.25;
+      this.world.cull(this.engine.camera.position, this.player.pos.y > 12 ? 90 : 48);
+    }
     if (this.state !== 'paused') {
       this.world.update(dt, t);
       this.world.lights.update(dt, t, this.engine.camera);

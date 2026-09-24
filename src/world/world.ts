@@ -210,7 +210,7 @@ export class World {
 
   /** place a GLB prop normalized to height; returns object (or null if missing) */
   prop(model: string, x: number, y: number, z: number, rotY: number, height: number, opts: { col?: [number, number, number] | boolean; parent?: THREE.Object3D; width?: number; shadows?: boolean } = {}): THREE.Object3D | null {
-    const shadows = opts.shadows ?? height >= 1.0;
+    const shadows = opts.shadows ?? height >= 1.6;
     const o = this.assets.instance(model, opts.width ? { width: opts.width, shadows } : { height, shadows });
     if (!o) return null;
     o.position.set(x, y, z);
@@ -236,6 +236,26 @@ export class World {
         this.chunks.set(name, g);
       }
     }
+  }
+
+  private cullItems: { o: THREE.Object3D; c: THREE.Vector3; r: number }[] = [];
+  private cullT = 0;
+  /** distance-cull small scattered objects (props, bulbs, signs…) to save draw calls */
+  setupCulling(groupNames: string[]) {
+    for (const n of groupNames) {
+      const grp = this.groups.get(n);
+      if (!grp) continue;
+      for (const o of grp.children) {
+        if (o.userData.noCull) continue;
+        const b = new THREE.Box3().setFromObject(o);
+        if (b.isEmpty()) continue;
+        const sph = b.getBoundingSphere(new THREE.Sphere());
+        this.cullItems.push({ o, c: sph.center, r: sph.radius });
+      }
+    }
+  }
+  cull(cam: THREE.Vector3, maxD: number) {
+    for (const it of this.cullItems) it.o.visible = it.c.distanceTo(cam) - it.r < maxD;
   }
 
   update(dt: number, t: number) {

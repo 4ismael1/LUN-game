@@ -32,7 +32,9 @@ function foliageMaterial(w: World, tex: THREE.Texture | undefined, color: number
     side: THREE.DoubleSide,
     roughness: 0.75,
     transparent: false,
+    emissive: 0x0c160c,
   });
+  if (tex) mat.emissiveMap = tex;
   if (!tex) mat.color.set(0x2b4a2a);
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = w.mats.uniforms.uTime;

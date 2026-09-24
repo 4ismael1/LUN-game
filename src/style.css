@@ -115,7 +115,7 @@ kbd { font-family: var(--serif); font-weight: 600; border: 1px solid var(--bone-
 #subs.show { opacity: 1; }
 #subs .who { color: var(--marigold); font-variant: small-caps; letter-spacing: 0.06em; margin-right: 0.35em; }
 #subs.thought { font-style: italic; color: #d8d2c4; }
-#toast { position: absolute; left: 28px; bottom: 26px; font-size: 1.05rem; color: var(--bone); text-shadow: 0 1px 6px #000; opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: translateY(8px); }
+#toast { position: absolute; left: 28px; top: 118px; max-width: min(420px, 70vw); font-size: 1.05rem; color: var(--bone); text-shadow: 0 1px 6px #000; opacity: 0; transition: opacity 0.5s, transform 0.5s; transform: translateY(8px); }
 #toast.show { opacity: 1; transform: translateY(0); }
 #toast small { display: block; font-size: 0.8rem; letter-spacing: 0.2em; color: var(--marigold); font-family: var(--display); }
 #stamina { position: absolute; left: 50%; bottom: 3.2%; width: 160px; height: 2px; margin-left: -80px; background: rgba(234,223,200,0.08); opacity: 0; transition: opacity 0.5s; }

@@ -336,6 +336,7 @@ export function buildHouse(w: World): HouseRefs {
   try {
     mirror = new Reflector(new THREE.PlaneGeometry(0.8, 1.3), { clipBias: 0.003, textureWidth: 512, textureHeight: 768, color: 0x8a8a88 });
     mirror.position.set(-31.2, 1.55, -75.78);
+    mirror.userData.noCull = true;
     w.group('house').add(mirror);
     (mirror as any).camera?.layers.enable(World.SPIRIT + 1);
   } catch {

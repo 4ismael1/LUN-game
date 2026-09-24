@@ -97,10 +97,10 @@ export function buildSky(scene: THREE.Scene): Sky {
   moon.castShadow = true;
   moon.shadow.mapSize.set(2048, 2048);
   const sc = moon.shadow.camera as THREE.OrthographicCamera;
-  sc.left = -40;
-  sc.right = 40;
-  sc.top = 40;
-  sc.bottom = -40;
+  sc.left = -32;
+  sc.right = 32;
+  sc.top = 32;
+  sc.bottom = -32;
   sc.near = 1;
   sc.far = 200;
   moon.shadow.bias = -0.0008;

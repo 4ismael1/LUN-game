@@ -914,9 +914,9 @@ export class Story {
   newGame() {
     const g = this.g;
     this.resetState();
-    g.player.teleport(V(12.5, 0.15, 20.5), Math.PI * 0.8);
+    g.player.teleport(V(12.5, 0.15, 20.5), 0.55);
     this.setStage(S.PROLOGUE);
-    this.saveCheckpoint(V(12.5, 0.15, 20.5), Math.PI * 0.8);
+    this.saveCheckpoint(V(12.5, 0.15, 20.5), 0.55);
     g.tasks.run(() => this.prologue());
   }
 
@@ -2609,6 +2609,8 @@ export class Story {
 
   private updateMirror() {
     const g = this.g;
+    // the reflector re-renders the whole scene: only keep it active inside the house
+    if (g.house.mirror) g.house.mirror.visible = g.zoneName === 'house' && g.player.pos.z < -66;
     if (!this.mirrorArmed || !g.house.mirror) return;
     const m = g.house.mirror;
     const cam = g.engine.camera;
