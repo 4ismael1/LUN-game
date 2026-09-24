@@ -43,6 +43,26 @@ if (location.search.includes('autolock')) {
       S.checkpoint = { stage, flags: Object.assign({ midnightStarted: true, guardLight: true }, flags), inventory: ['telefono', 'linterna', 'cerillos', ...inv], docs: [], film: inv.includes('camara') ? 10 : 0, battery: 1, spares: 2, hasFlashlight: true, hasCamera: inv.includes('camara'), pos, yaw, playTime: 0, deaths: 0, photos: [], candles: [false, false, false, false, false, false, false] };
       game.retry();
     },
+    /** render a frame at a fixed size and hand it to the local QA snapshot server */
+    snap(w = 800, h = 450) {
+      Object.defineProperty(window, 'innerWidth', { value: w, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: h, configurable: true });
+      game.engine.resize();
+      game.frame(1 / 60);
+      game.frame(1 / 60);
+      return game.engine.renderer.domElement.toDataURL('image/jpeg', 0.75);
+    },
+    async save(name: string, w = 800, h = 450) {
+      const d = (window as any).T.snap(w, h);
+      return (await fetch('http://127.0.0.1:8765/' + name, { method: 'POST', body: d })).text();
+    },
+    /** advance the game n seconds, letting scripts (promises) resolve between frames */
+    async run(sec: number, dt = 1 / 30) {
+      for (let i = 0; i < sec / dt; i++) {
+        game.frame(dt);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    },
     async fps(sec = 2) {
       let n = 0;
       const t0 = performance.now();

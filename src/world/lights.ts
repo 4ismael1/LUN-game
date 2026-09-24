@@ -33,6 +33,8 @@ export class LightManager {
   onMat: THREE.MeshStandardMaterial;
   offMat: THREE.MeshStandardMaterial;
   globalLevel = 1; // blackout control
+  /** set after a teleport: new lamp assignments appear at full brightness instead of fading in */
+  snapNext = false;
   groupLevels = new Map<string, number>();
 
   constructor(private scene: THREE.Scene, poolSize: number, onMat: THREE.MeshStandardMaterial, offMat: THREE.MeshStandardMaterial) {
@@ -160,7 +162,7 @@ export class LightManager {
       const a = newAssign[i];
       if (a !== this.assign[i]) {
         // fade in new assignment to avoid pops
-        L.userData.fade = 0;
+        L.userData.fade = this.snapNext ? 1 : 0;
       }
       this.assign[i] = a;
       if (!a) {
@@ -176,6 +178,7 @@ export class LightManager {
       const farFade = 1 - THREE.MathUtils.smoothstep(d, 38, 58);
       L.intensity = a.intensity * (a as any)._eff * L.userData.fade * farFade;
     }
+    this.snapNext = false;
   }
   private tmp2 = new THREE.Vector3();
 }

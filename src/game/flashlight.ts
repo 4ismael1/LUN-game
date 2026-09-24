@@ -146,6 +146,9 @@ export class HandFlashlight {
     return this.lower < 0.98;
   }
 
+  /** set after a teleport so the beam doesn't sweep across from the old spot */
+  snapNext = false;
+
   setHeld(held: boolean) {
     this.lowerTarget = held ? 0 : 1;
   }
@@ -187,7 +190,11 @@ export class HandFlashlight {
     this.aimDist += (dist - this.aimDist) * Math.min(1, dt * 8);
     const want = this.cam.position.clone().addScaledVector(fwd, dist);
     this.aim.lerp(want, Math.min(1, dt * 16));
-    if (this.aim.lengthSq() === 0) this.aim.copy(want);
+    if (this.aim.lengthSq() === 0 || this.snapNext) {
+      this.aim.copy(want);
+      this.aimDist = dist;
+      this.snapNext = false;
+    }
     // when lowered (camera raised / hidden) the beam points down in front
     this.spot.position.copy(this.visible ? lensW : this.cam.position.clone().add(new THREE.Vector3(0, -0.3, 0)));
     this.target.position.copy(this.aim);

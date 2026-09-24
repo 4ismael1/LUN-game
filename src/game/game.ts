@@ -15,6 +15,7 @@ import { buildChurch, ChurchRefs } from '../world/build/church';
 import { buildMarket, MarketRefs } from '../world/build/market';
 import { buildHouse, HouseRefs } from '../world/build/house';
 import { buildStage, StageRefs } from '../world/build/stage';
+import { buildFiller } from '../world/build/filler';
 import { buildStreets, LoopStreet } from '../world/build/streets';
 import { buildSky, Sky } from '../world/build/sky';
 import { drawSymbol } from '../world/canvasTex';
@@ -244,6 +245,7 @@ export class Game {
     this.house = buildHouse(w);
     this.stage = buildStage(w);
     this.streets = buildStreets(w);
+    buildFiller(w, this.streets);
     // zones (priority: small first)
     w.zone('plaza', -34, -36, 50, 30.5, { priority: 1, reverb: [0.12, 0.1, 0], footstep: 'stone' });
     w.zone('garden', -22, -22, 22, 22, { priority: 2, reverb: [0.1, 0.08, 0], footstep: 'stone' });
@@ -319,6 +321,13 @@ export class Game {
       return new THREE.Vector3(p.x + (Math.random() - 0.5) * 30, 3.5, p.z + (Math.random() - 0.5) * 30);
     };
     a.onThunder = () => this.story.lightning();
+  }
+
+  /** after moving the player instantly: no sweeping beam, no lamp fade-in, no culling lag */
+  afterTeleport() {
+    this.hand.snapNext = true;
+    this.world.lights.snapNext = true;
+    this.cullT = 0;
   }
 
   // ---------------------------------------------------------------- input / UI

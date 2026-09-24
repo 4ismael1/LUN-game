@@ -12,6 +12,8 @@ export interface LoopStreet {
   barrier: THREE.Group;
   barrierCols: import('../colliders').Collider[];
   fogWall: THREE.Mesh;
+  /** fog banks at LOOP_D ± 15 (inner, outer): identical from both sides of the jump */
+  fogBanks: [THREE.Group, THREE.Group];
 }
 
 export const LOOP_D = 38;
@@ -45,11 +47,29 @@ const BAND_OPENINGS = (L: number): Opening[] => {
   return ops;
 };
 
+let fogTex: THREE.Texture | null = null;
+function fogBankTexture() {
+  if (fogTex) return fogTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 128;
+  const x = c.getContext('2d')!;
+  const g = x.createLinearGradient(0, 0, 0, 128);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.9)');
+  g.addColorStop(1, 'rgba(255,255,255,1)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 64, 128);
+  fogTex = new THREE.CanvasTexture(c);
+  return fogTex;
+}
+
 export function buildStreets(w: World): LoopStreet[] {
   const defs: [string, THREE.Vector3, THREE.Vector3, number][] = [
-    ['Calle Nieto', new THREE.Vector3(0, 0, 30.2), new THREE.Vector3(0, 0, 1), 0xd8b890],
-    ['Calle Tepetate', new THREE.Vector3(30.2, 0, 19), new THREE.Vector3(1, 0, 0), 0xc89070],
-    ['Calle de la Luz', new THREE.Vector3(20, 0, -30.2), new THREE.Vector3(0, 0, -1), 0xa8b8a0],
+    // the looping stretch (s 22..54) must look identical in every street so the jump is invisible
+    ['Calle Nieto', new THREE.Vector3(0, 0, 30.2), new THREE.Vector3(0, 0, 1), 0xc8a484],
+    ['Calle Tepetate', new THREE.Vector3(30.2, 0, 19), new THREE.Vector3(1, 0, 0), 0xc8a484],
+    ['Calle de la Luz', new THREE.Vector3(20, 0, -30.2), new THREE.Vector3(0, 0, -1), 0xc8a484],
   ];
   const out: LoopStreet[] = [];
   const palette = [0xd09a55, 0xb45a3c, 0x4a6aa8, 0xdcae4a, 0xc86a8a, 0xeadcc0, 0x6d8a66];
@@ -80,7 +100,8 @@ export function buildStreets(w: World): LoopStreet[] {
         const color = band ? bandColor : palette[(si * 7 + s0 + (side > 0 ? 3 : 0)) % palette.length];
         facade(w, {
           x0: p0.x, z0: p0.z, x1: p1.x, z1: p1.z, facing, height: band ? 8.6 : 7.5 + ((s0 * 13 + si) % 3), color, depth: 5, chunk: ch,
-          seed: 700 + si * 50 + s0 + (side > 0 ? 7 : 0), base: 0.15,
+          // the band shares one seed across streets (same windows everywhere → seamless loop)
+          seed: band ? 700 + s0 + (side > 0 ? 7 : 0) : 700 + si * 50 + s0 + (side > 0 ? 7 : 0), base: 0.15,
           openings: band ? BAND_OPENINGS(L) : undefined,
           auto: band ? undefined : { ground: 'mixed', upper: true, bay: 3.4 },
           plain: band,
@@ -151,7 +172,21 @@ export function buildStreets(w: World): LoopStreet[] {
     fogWall.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
     fogWall.visible = false;
     w.scene.add(fogWall);
-    out.push({ name, mouth, dir, right, barrier, barrierCols, fogWall });
+    const bank = (s: number, facingOut: boolean) => {
+      const grp = new THREE.Group();
+      for (let k = 0; k < 4; k++) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(2 * STREET_HALF + 3, 16), new THREE.MeshBasicMaterial({ map: fogBankTexture(), color: 0x0b1018, transparent: true, opacity: 0.55, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+        const p = at(s + (facingOut ? k : -k) * 1.6, 0);
+        m.position.set(p.x, 6, p.z);
+        m.rotation.y = Math.atan2(dir.x, dir.z);
+        grp.add(m);
+      }
+      grp.visible = false;
+      w.scene.add(grp);
+      return grp;
+    };
+    const fogBanks: [THREE.Group, THREE.Group] = [bank(LOOP_D - 15, false), bank(LOOP_D + 15, true)];
+    out.push({ name, mouth, dir, right, barrier, barrierCols, fogWall, fogBanks });
     w.zone('street:' + si, Math.min(at(0.5, -3).x, at(STREET_LEN, 3).x), Math.min(at(0.5, -3).z, at(STREET_LEN, 3).z), Math.max(at(0.5, -3).x, at(STREET_LEN, 3).x), Math.max(at(0.5, -3).z, at(STREET_LEN, 3).z), { priority: 3, reverb: [0.25, 0.1, 0], footstep: 'stone' });
   });
   return out;

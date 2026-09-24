@@ -1334,6 +1334,7 @@ export class Story {
         v.x = vx;
         v.z = vz;
         g.player.syncCamera(0);
+        g.afterTeleport();
         this.lastTeleport = g.tasks.time;
         this.onLoop(st, next);
         return;
@@ -1361,13 +1362,27 @@ export class Story {
     });
   }
 
+  /** fog banks down the looping streets: shown only inside the band so both sides of the jump match */
+  private updateStreetBanks() {
+    const g = this.g;
+    const active = this.stage >= S.MIDNIGHT && this.stage < S.DAWN;
+    for (const st of g.streets) {
+      const l = toLocal(st, g.player.pos);
+      const inBand = active && Math.abs(l.x) < 4 && l.s > LOOP_D - 13 && l.s < LOOP_D + 13;
+      st.fogBanks.forEach((b) => {
+        b.visible = inBand;
+        if (inBand) b.children.forEach((m) => ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).color.copy(g.fogColor));
+      });
+    }
+  }
+
   streetFogBoost() {
     if (this.stage < S.MIDNIGHT || this.stage >= S.DAWN) return 0;
     const z = this.g.zoneName;
     if (!z.startsWith('street:')) return 0;
     const st = this.g.streets[parseInt(z.split(':')[1], 10)];
     const l = toLocal(st, this.g.player.pos);
-    return 0.075 * THREE.MathUtils.smoothstep(l.s, 8, 30);
+    return 0.1 * THREE.MathUtils.smoothstep(l.s, 8, 30);
   }
 
   // ======================================================================= CHURCH
@@ -2517,6 +2532,7 @@ export class Story {
   update(dt: number) {
     const g = this.g;
     const s = this.stage;
+    this.updateStreetBanks();
     // prologue clock
     if (s === S.PROLOGUE) {
       this.clockMin += dt / 13;
