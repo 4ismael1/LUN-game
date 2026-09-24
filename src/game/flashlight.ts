@@ -79,9 +79,9 @@ export class HandFlashlight {
   constructor(private cam: THREE.PerspectiveCamera, scene: THREE.Scene) {
     cam.add(this.group);
     this.group.add(this.model);
-    const metal = new THREE.MeshStandardMaterial({ color: 0x1c1d1f, metalness: 0.75, roughness: 0.38 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x3a3c40, metalness: 0.6, roughness: 0.35, emissive: 0x16171a });
     const rubber = new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.9 });
-    const chrome = new THREE.MeshStandardMaterial({ color: 0x8a8a88, metalness: 1, roughness: 0.2 });
+    const chrome = new THREE.MeshStandardMaterial({ color: 0xa8a8a4, metalness: 0.9, roughness: 0.2, emissive: 0x2a2a28 });
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.2, 16), metal);
     body.rotation.x = Math.PI / 2;
     body.position.z = 0.06;
@@ -100,7 +100,7 @@ export class HandFlashlight {
     this.lens.position.z = -0.1255;
     this.lens.rotation.y = Math.PI;
     // hand (simple glove-like shape so it doesn't float)
-    const skin = new THREE.MeshStandardMaterial({ color: 0x6a5040, roughness: 0.8 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0x8a6650, roughness: 0.8, emissive: 0x1a120c });
     const hand = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin);
     hand.scale.set(1.1, 0.9, 1.6);
     hand.position.set(0.005, -0.012, 0.08);
@@ -137,6 +137,11 @@ export class HandFlashlight {
     scene.add(this.bounce);
   }
 
+  /** 0..1: how far the flashlight is raised (the beam only turns on once it is up) */
+  get raise() {
+    return THREE.MathUtils.clamp(1 - this.lower * 1.6, 0, 1);
+  }
+
   get visible() {
     return this.lower < 0.98;
   }
@@ -158,7 +163,7 @@ export class HandFlashlight {
     this.sway.clampScalar(-0.08, 0.08);
     this.bob += dt * moveSpeed * (running ? 2.1 : 2.6);
     const bobAmt = Math.min(1, moveSpeed / 3) * (running ? 0.022 : 0.01);
-    this.lower += (this.lowerTarget - this.lower) * Math.min(1, dt * 7);
+    this.lower += (this.lowerTarget - this.lower) * Math.min(1, dt * 9);
     const m = this.model;
     m.position.set(0.2 + this.sway.x + Math.cos(this.bob) * bobAmt, -0.19 + this.sway.y - Math.abs(Math.sin(this.bob)) * bobAmt - this.lower * 0.35, -0.36);
     m.rotation.set(0.05 + this.sway.y * 1.5 + this.lower * 0.9, 0.08 - this.sway.x * 2, -this.sway.x * 1.2);

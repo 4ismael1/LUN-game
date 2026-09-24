@@ -11,7 +11,10 @@ export class UI {
   private hintTimer = 0;
   private toastTimer = 0;
   private subQueue: { who: string; text: string; dur: number; thought: boolean; resolve: () => void }[] = [];
-  private subActive = false;
+  subActive = false;
+  subIsDialogue = false;
+  private subResolve: (() => void) | null = null;
+  private cardTimer = 0;
   hudVisible = false;
   uiSound: (kind: 'hover' | 'click' | 'back') => void = () => {};
 
@@ -170,7 +173,18 @@ export class UI {
   /** queue a subtitle line; resolves when it has finished */
   sub(who: string, text: string, dur: number, thought = false): Promise<void> {
     return new Promise((resolve) => {
-      this.subQueue.push({ who, text, dur, thought, resolve });
+      const item = { who, text, dur, thought, resolve };
+      if (who && !thought) {
+        // spoken dialogue jumps ahead of queued inner thoughts and cuts the current one
+        const firstThought = this.subQueue.findIndex((q) => q.thought);
+        if (firstThought >= 0) this.subQueue.splice(firstThought, 0, item);
+        else this.subQueue.push(item);
+        if (this.subActive && !this.subIsDialogue && this.subResolve) {
+          this.subQueue.splice(this.subQueue.indexOf(item), 1);
+          this.subQueue.unshift(item);
+          this.subResolve();
+        }
+      } else this.subQueue.push(item);
       if (!this.subActive) this.nextSub();
     });
   }
@@ -183,17 +197,45 @@ export class UI {
       return;
     }
     this.subActive = true;
-    if (settings.subtitles || n.thought) {
-      s.innerHTML = (n.who ? `<span class="who">${n.who}</span>` : '') + n.text;
+    this.subIsDialogue = !!n.who;
+    if (settings.subtitles || n.thought || n.who) {
+      s.innerHTML = (n.who ? `<span class="who">${n.who}</span>` : '') + n.text + (n.who ? ' <span class="skip">E ›</span>' : '');
       s.classList.toggle('thought', n.thought);
       s.classList.add('show');
     }
     clearTimeout(this.subTimer);
-    this.subTimer = window.setTimeout(() => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(this.subTimer);
+      this.subResolve = null;
       s.classList.remove('show');
       n.resolve();
-      window.setTimeout(() => this.nextSub(), 180);
-    }, n.dur * 1000);
+      window.setTimeout(() => this.nextSub(), 120);
+    };
+    this.subResolve = finish;
+    this.subTimer = window.setTimeout(finish, n.dur * 1000);
+  }
+  /** advance the current subtitle line (dialogue skip) */
+  skipSub(): boolean {
+    if (!this.subActive || !this.subResolve) return false;
+    this.subResolve();
+    return true;
+  }
+
+  itemCard(icon: HTMLCanvasElement, title: string, memory = false) {
+    const c = $('itemcard');
+    const cv = c.querySelector('canvas') as HTMLCanvasElement;
+    const g = cv.getContext('2d')!;
+    g.clearRect(0, 0, 64, 64);
+    g.drawImage(icon, 0, 0);
+    (c.querySelector('.nm') as HTMLElement).innerHTML = `<small>${memory ? 'RECUERDO' : 'OBTENIDO'}</small>${title}`;
+    c.classList.remove('show');
+    void c.offsetWidth; // restart the animation
+    c.classList.add('show');
+    clearTimeout(this.cardTimer);
+    this.cardTimer = window.setTimeout(() => c.classList.remove('show'), 2700);
   }
   clearSubs() {
     this.subQueue.forEach((q) => q.resolve());

@@ -10,7 +10,7 @@ import { signTexture, flameTexture } from '../world/canvasTex';
 import { HideSpot, World } from '../world/world';
 import { doorCenter } from '../world/build/helpers';
 import { uvBox } from '../world/geom';
-import { MEMORY_IDS } from './items';
+import { MEMORY_IDS, itemIcon as itemIconFor } from './items';
 import { loadProgress, saveProgress } from '../core/settings';
 
 const SAVE_KEY = 'ultima-noche-save-v1';
@@ -55,7 +55,7 @@ export class Story {
   flags: Record<string, any> = {};
   npcs: NPC[] = [];
   npc: Record<string, NPC> = {};
-  clockMin = 23 * 60 + 40;
+  clockMin = 23 * 60 + 52;
   lockMove = false;
   scriptedChase = false;
   private hintsShown = new Set<string>();
@@ -135,16 +135,16 @@ export class Story {
     const g = this.g;
     const w = g.world;
     const defs: NPCDef[] = [
-      { id: 'beto', name: 'Don Beto', model: 'npc_old', height: 1.68, pos: V(11, 0, 25.4), yaw: Math.PI, anim: 'interact', voice: 'beto' },
-      { id: 'chayo', name: 'Doña Chayo', model: 'npc_woman2', height: 1.58, pos: V(-3.9, 0.15, 13), yaw: Math.PI / 2, anim: 'sitting', voice: 'chayo' },
-      { id: 'chuy', name: 'Chuy', model: 'npc_man', height: 1.74, pos: g.stage.musicianSpot.clone(), yaw: -Math.PI / 2, anim: 'idle', voice: 'chuy' },
-      { id: 'chema', name: 'Don Chema', model: 'npc_man2', height: 1.72, pos: V(-27.3, 0, 27.3), yaw: 0, anim: 'walk', voice: 'chema', path: [V(-27.3, 0, 27.3), V(27.3, 0, 27.3), V(27.3, 0, -27), V(-27.3, 0, -27)], speed: 1.0 },
-      { id: 'panadero', name: 'El panadero', model: 'npc_man', height: 1.7, pos: V(-33.2, 0.15, -16), yaw: Math.PI / 2, anim: 'idle', voice: 'panadero', tint: 0xf0e8d8 },
-      { id: 'compa1', name: 'Parroquiano', model: 'npc_man2', height: 1.72, pos: V(-31.6, 0.15, -3.2), yaw: 0.4, anim: 'idle', voice: 'vecino', tint: 0x8a9ab8 },
-      { id: 'compa2', name: 'Parroquiano', model: 'npc_man', height: 1.76, pos: V(-31.4, 0.15, -1.8), yaw: Math.PI - 0.3, anim: 'idle', voice: 'vecino', tint: 0xb89a7a },
-      { id: 'lupe', name: 'Doña Lupe', model: 'npc_woman', height: 1.6, pos: V(-33.3, 0.15, 4), yaw: Math.PI / 2, anim: 'idle', voice: 'lupe' },
-      { id: 'pareja1', name: '', model: 'npc_woman', height: 1.62, pos: V(-4, 0.15, 17), yaw: 0, anim: 'walk', voice: 'vecina', path: [V(-1.2, 0.15, 21), V(-0.8, 0, 36)], speed: 0.8, tint: 0xc890a0 },
-      { id: 'pareja2', name: '', model: 'npc_man2', height: 1.75, pos: V(-3, 0.15, 17), yaw: 0, anim: 'walk', voice: 'vecino', path: [V(0.2, 0.15, 21), V(0.6, 0, 36)], speed: 0.8 },
+      { id: 'beto', name: 'Don Beto', model: 'npc_man', height: 1.68, pos: V(11, 0, 25.4), yaw: Math.PI, anim: 'idle', voice: 'beto', outfit: { Shirt: 0xe6ddc8, Pants: 0x3a3026, Hair: 0xc8c4be, Skin: 0x8a6448 } },
+      { id: 'chayo', name: 'Doña Chayo', model: 'npc_woman2', height: 1.58, pos: V(-1.5, 0.15, 12.1), yaw: Math.PI / 2 + 0.4, anim: 'idle', voice: 'chayo', outfit: { Jacket: 0x5a2a3a, LightJacket: 0x6a3a48, Shirt: 0x2a2226, Pants: 0x2a2024, HairBase: 0xa8a4a0, Hair: 0xb8b4b0, Skin: 0x9a7a5a } },
+      { id: 'chuy', name: 'Chuy', model: 'npc_man', height: 1.74, pos: g.stage.musicianSpot.clone(), yaw: -Math.PI / 2, anim: 'idle', voice: 'chuy', outfit: { Shirt: 0x1a1a1c, Pants: 0x1a1a1c, Skin: 0x8a6a4a } },
+      { id: 'chema', name: 'Don Chema', model: 'npc_man2', height: 1.72, pos: V(-27.3, 0, 27.3), yaw: 0, anim: 'walk', voice: 'chema', outfit: { Shirt: 0x2a3552, Pants: 0x1c2030, Socks: 0x111111 }, path: [V(-27.3, 0, 27.3), V(27.3, 0, 27.3), V(27.3, 0, -27), V(-27.3, 0, -27)], speed: 1.0 },
+      { id: 'panadero', name: 'El panadero', model: 'npc_man', height: 1.7, pos: V(-33.2, 0.15, -16), yaw: Math.PI / 2, anim: 'idle', voice: 'panadero', outfit: { Shirt: 0xf0ece4, Pants: 0x5a5048 } },
+      { id: 'compa1', name: 'Parroquiano', model: 'npc_man2', height: 1.72, pos: V(-31.6, 0.15, -3.2), yaw: 0.4, anim: 'idle', voice: 'vecino', outfit: { Shirt: 0x7a2a2a, Pants: 0x2e3848 } },
+      { id: 'compa2', name: 'Parroquiano', model: 'npc_man', height: 1.76, pos: V(-31.4, 0.15, -1.8), yaw: Math.PI - 0.3, anim: 'idle', voice: 'vecino', outfit: { Shirt: 0xd8c8a0, Pants: 0x3a3a3a } },
+      { id: 'lupe', name: 'Doña Lupe', model: 'npc_woman', height: 1.6, pos: V(-33.3, 0.15, 4), yaw: Math.PI / 2, anim: 'idle', voice: 'lupe', outfit: { Dress: 0x3a4a7a, Hair: 0x1a1412 } },
+      { id: 'pareja1', name: '', model: 'npc_woman', height: 1.62, pos: V(-0.9, 0.15, 16.2), yaw: Math.PI / 2, anim: 'idle', voice: 'vecina', path: [V(-1.2, 0.15, 21), V(-0.8, 0, 38)], speed: 0.8, outfit: { Dress: 0xb03a5a }, oneWay: true },
+      { id: 'pareja2', name: '', model: 'npc_man2', height: 1.75, pos: V(0.3, 0.15, 16.3), yaw: -Math.PI / 2, anim: 'idle', voice: 'vecino', path: [V(0.2, 0.15, 21), V(0.6, 0, 38)], speed: 0.8, oneWay: true },
     ];
     for (const d of defs) {
       const n = new NPC(d, w);
@@ -167,7 +167,7 @@ export class Story {
       this.npc.lupe.obj.add(br);
     }
     // Lucía (ghost girl) — child model tinted yellow
-    const ld: NPCDef = { id: 'lucia', name: 'Lucía', model: 'npc_child', height: 1.22, pos: V(0.5, 0.15, 7.6), yaw: Math.PI, anim: 'idle', voice: 'lucia', tint: 0xf0d040 };
+    const ld: NPCDef = { id: 'lucia', name: 'Lucía', model: 'npc_child', height: 1.22, pos: V(0.5, 0.15, 7.6), yaw: Math.PI, anim: 'idle', voice: 'lucia', outfit: { LightBrown: 0xf0c828, LightBlue: 0xf0c828, Hair: 0x2a1a10 } };
     this.lucia = new NPC(ld, w);
     this.lucia.setVisible(false);
     this.lucia.obj.traverse((c) => {
@@ -251,7 +251,7 @@ export class Story {
     const pos = reb.geometry.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) pos.setZ(i, Math.random() * 0.06);
     reb.rotation.x = -Math.PI / 2 + 0.2;
-    reb.position.set(-3.5, 0.62, 13);
+    reb.position.set(-2.4, 0.62, 13);
     reb.visible = false;
     g.engine.scene.add(reb);
     this.chayoRebozo = reb;
@@ -432,7 +432,7 @@ export class Story {
       this.it('talk:' + id, n.pos.clone(), () => `Hablar con ${n.def.name}`, () => this.stage === S.PROLOGUE && n.visible && !n.talking && !this.flags.midnightStarted, () => this.talk(id), { radius: 0.7, reach: 2.6 });
       // follow npc
       const itm = g.world.interactables[g.world.interactables.length - 1];
-      g.world.updaters.push(() => itm.pos.set(n.pos.x, n.pos.y + 1.4, n.pos.z));
+      g.world.updaters.push(() => itm.pos.set(n.pos.x, n.pos.y + (n.baseAnim === 'sitting' ? 1.0 : 1.45), n.pos.z));
     }
     // ---------- documents / posters ----------
     this.it('poster', V(2.6, 1.7, -9.45), 'Leer el cartel', () => true, () => g.read(this.DOCS.cartel_lucia));
@@ -535,7 +535,7 @@ export class Story {
     g.world.updaters.push(() => di.pos.copy(g.entity.pos).setY(g.entity.pos.y + 1.8));
     // ---------- misc flavor ----------
     this.it('fuente', V(0, 0.9, -11.4), 'Asomarse a la fuente', () => st() >= S.MIDNIGHT, () => g.think(this.stage >= S.CLIMAX ? 'Velas flotando sobre el agua negra. Cientos.' : 'Seca. Hace un momento corría el agua.'), { radius: 1.5 });
-    this.it('rebozo', V(-3.5, 0.7, 13), 'Mirar el rebozo', () => st() >= S.MIDNIGHT && this.chayoRebozo.visible, () => g.think('El rebozo de Doña Chayo. Tibio. Huele a canela.'), { radius: 0.4 });
+    this.it('rebozo', V(-2.4, 0.7, 13), 'Mirar el rebozo', () => st() >= S.MIDNIGHT && this.chayoRebozo.visible, () => g.think('El rebozo de Doña Chayo. Tibio. Huele a canela.'), { radius: 0.4 });
     this.it('estatua', V(0, 2.4, 12.6), 'Leer la placa', () => true, () => g.think(this.stage >= S.HOUSE ? '«A las madres que esperan.» …Antes miraba hacia el kiosco. Ahora mira hacia el callejón.' : '«A las madres que esperan. Barrio del Carmen, 1962.»'), { radius: 0.6 });
     this.it('relojIglesia', V(0, 2, -30.9), 'Mirar el reloj del templo', () => true, () => g.think('El reloj del templo marca las 12:13. Doña Chayo dice que así lleva veinte años.'), { radius: 1.2, reach: 3 });
     this.it('tv', g.market.cantinaTV.position.clone(), 'Mirar la televisión', () => st() >= S.MIDNIGHT, () => g.think('Solo estática. Por un momento creí ver el kiosco en la pantalla.'), { radius: 0.4, reach: 3 });
@@ -659,7 +659,7 @@ export class Story {
 
   private updateRain(dt: number) {
     const r = this.rain!;
-    r.visible = this.rainOn && !this.g.zone?.indoor;
+    r.visible = this.rainOn && !this.g.zone?.indoor && this.g.zoneName !== 'arcade' && this.g.zoneName !== 'kiosk';
     if (!r.visible) return;
     const s = r.userData.seeds as Float32Array;
     const pos = (r.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
@@ -924,7 +924,7 @@ export class Story {
     const g = this.g;
     this.flags = {};
     this.stage = 0;
-    this.clockMin = 23 * 60 + 40;
+    this.clockMin = 23 * 60 + 52;
     this.hintsShown.clear();
     this.events.clear();
     this.prologueDoneTalk.clear();
@@ -1101,7 +1101,7 @@ export class Story {
   // ======================================================================= PROLOGUE
   private async prologue() {
     const g = this.g;
-    g.ui.clock('11:40 p.m.');
+    g.ui.clock('11:52 p.m.');
     await g.wait(1.5);
     g.ui.toast('Mensaje', 'Tu conductor llega a las <b>12:05</b> · Calle Nieto (lado sur del jardín).', 6);
     g.sfx('ui_note', undefined, 0.5, { bus: 'ui' });
@@ -1109,22 +1109,22 @@ export class Story {
     this.objective('Espera tu taxi (12:05). Puedes dar una vuelta por el jardín.');
     g.ui.hint('<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> caminar · <kbd>Ratón</kbd> mirar · <kbd>F</kbd> linterna', 8);
     await g.think('Otra vez salí tardísimo. Al menos la plaza está bonita… mañana es la Candelaria.');
-    await g.wait(20);
+    await g.wait(8);
     g.ui.hint('<kbd>Shift</kbd> correr · <kbd>C</kbd> agacharse', 5);
     // wait for 11:47
-    await g.until(() => this.clockMin >= 23 * 60 + 47);
+    await g.until(() => this.clockMin >= 23 * 60 + 54);
     g.sfx('ui_note', undefined, 0.5, { bus: 'ui' });
     g.ui.toast('Mensaje · Número desconocido', '¿Ya vienes, Julián? Tu hermana te está esperando en el kiosco.', 7);
     await g.wait(2.5);
     await g.think('¿Mi hermana…? Número equivocado. Tiene que ser.');
-    await g.until(() => this.clockMin >= 23 * 60 + 50);
+    await g.until(() => this.clockMin >= 23 * 60 + 55);
     // panadero closes
     this.closeBakery();
-    await g.until(() => this.clockMin >= 23 * 60 + 52);
+    await g.until(() => this.clockMin >= 23 * 60 + 56);
     this.npc.pareja1.busy = this.npc.pareja2.busy = false;
     // the girl on the kiosk steps (sighting)
     this.flags.girlShow = true;
-    await g.until(() => this.clockMin >= 23 * 60 + 58);
+    await g.until(() => this.clockMin >= 23 * 60 + 59);
     this.flags.girlShow = false;
     this.lucia?.setVisible(false);
     await g.think('Casi medianoche. Van a tocar las campanas.');
@@ -1157,17 +1157,21 @@ export class Story {
     const n = this.npc[id];
     n.talking = true;
     const p = n.pos.clone().setY(n.pos.y + 1.6);
+    g.player.lookOverride = { target: n.pos.clone().setY(n.pos.y + (n.baseAnim === 'sitting' ? 1.0 : 1.55)), strength: 5 };
+    setTimeout(() => (g.player.lookOverride = null), 450);
     const who = n.def.name;
     const v = n.def.voice;
     const k = n.talkIdx++;
     try {
       if (id === 'beto') {
         if (k === 0) {
-          await g.say(who, '¡Buenas noches, joven! Ya estoy guardando, pero todavía me queda champurrado calientito. ¿Gusta?', v, p);
+          await g.say(who, '¡Buenas noches, joven! Ya estoy guardando, pero me queda un tamalito de rajas, recién salido. ¿Gusta?', v, p);
           await g.say('Julián', 'Gracias, don. ¿Cuánto le debo?', 'julian');
-          await g.say(who, 'Nada, nada. Ándele, que está haciendo frío. Y llévese estos cerillos, pa\' que se alumbre…', v, p);
-          await g.say(who, '…que en esta plaza, de repente, se va la luz.', v, p);
+          g.sfx('cloth_rustle', p, 0.5);
+          g.give('tamal');
+          await g.say(who, 'Nada, nada. Ándele, que está haciendo frío. Y llévese estos cerillos, pa’ que se alumbre…', v, p);
           g.give('cerillos');
+          await g.say(who, '…que en esta plaza, de repente, se va la luz.', v, p);
           g.ui.hint('<kbd>Tab</kbd> inventario', 4);
         } else if (k === 1) {
           await g.say(who, 'Mañana es la Candelaria. Tamales pa\' todo el barrio.', v, p);
@@ -1177,7 +1181,7 @@ export class Story {
       } else if (id === 'chayo') {
         n.lookAtPlayer = 3;
         if (k === 0) {
-          await g.say(who, 'Siéntese si quiere, mijo. Yo aquí espero a mi viejo, que siempre se tarda en la cantina.', v, p);
+          await g.say(who, '¿Usted también espera a alguien, mijo? Yo aquí espero a mi viejo, que siempre se tarda en la cantina.', v, p);
         } else if (k === 1) {
           await g.say(who, '¿Ve aquel reloj de la iglesia? Se paró hace veinte años. Las doce y trece. Nadie lo ha querido componer.', v, p);
         } else {
@@ -1280,9 +1284,9 @@ export class Story {
     await g.think('Allá, junto a la fuente. Una luz en el suelo.');
     g.ui.hint('<kbd>F</kbd> enciende tu linterna en los lugares oscuros', 5);
     await g.until(() => this.flags.guardLight || this.flags.loopFound, 40);
-    if (!this.flags.loopFound) this.objective('Sal de la plaza.');
+    if (!this.flags.loopFound && !this.flags.visitedChurch) this.objective('Sal de la plaza.');
     await g.until(() => this.flags.loopFound || this.zoneIs('church'), 240);
-    if (!this.flags.loopFound && !this.zoneIs('church')) this.objective('Algo no te deja salir. La iglesia está abierta.');
+    if (!this.flags.loopFound && !this.zoneIs('church') && !this.flags.visitedChurch) this.objective('Algo no te deja salir. La iglesia está abierta.');
   }
 
   private pickFlashlight() {
@@ -1299,7 +1303,7 @@ export class Story {
     g.tasks.run(async () => {
       await g.wait(0.6);
       await g.think('La linterna de Don Chema. Todavía estaba prendida… apuntando a la iglesia. Me quedo con sus pilas.');
-      if (!this.flags.loopFound) this.objective('Sal de la plaza. Tu taxi… ya no importa.');
+      if (!this.flags.loopFound && !this.flags.visitedChurch) this.objective('Sal de la plaza. Tu taxi… ya no importa.');
     });
   }
 
@@ -1349,7 +1353,7 @@ export class Story {
         g.sfx('riser', undefined, 0.35);
         await g.think('No… Esta es la plaza. Otra vez la plaza.');
         await g.think(`Me fui por la ${from.name} y regresé por la ${to.name}.`);
-        this.objective('Algo no te deja salir. La iglesia está abierta.');
+        if (!this.flags.confessed && this.stage === S.MIDNIGHT) this.objective('Algo no te deja salir. La iglesia está abierta.');
       } else if (this.loopCount === 2) await g.think('Otra vez. Todas las calles regresan aquí.');
       else if (this.loopCount === 4) await g.think('Deja de correr, Julián. No hay salida por aquí.');
     });
@@ -1517,13 +1521,14 @@ export class Story {
       g.sfx('child_laugh', l.pos.clone().setY(1.2), 0.5);
       await g.wait(Math.min(dur - 6, 10));
       // she runs toward the callejón
-      l.def.path = [V(-6, 0.15, 12), V(-20, 0, 21), V(-26, 0, 0), V(-25, 0, -26), V(-22, 0, -32), V(-22, 0, -40)];
+      l.def.path = [V(-3.5, 0.15, 7.5), V(-8.5, 0.15, 1.2), V(-21, 0.15, 1.2), V(-26, 0, 0), V(-26, 0, -26), V(-22, 0, -32), V(-22, 0, -40)];
+      l.def.noWait = true;
       l.def.speed = 3.2;
       l.pathIdx = 0;
       l.waitTime = 0;
       g.sfx('child_run', l.pos.clone().setY(0.5), 0.6);
       this.objective('Sigue a la niña.');
-      await g.until(() => l.pathIdx >= 4 || l.pos.distanceTo(V(-22, 0, -32)) < 2, 30);
+      await g.until(() => l.pathIdx >= 5 || l.pos.distanceTo(V(-22, 0, -32)) < 2, 30);
       g.sfx('chain_rattle', V(-22, 1.5, -31.2), 0.7, { ref: 6 });
       await g.wait(0.8);
       this.setStage(S.KIOSK);
@@ -1534,7 +1539,7 @@ export class Story {
         d.setOpen(true);
       }
       g.sfx('gate_iron_creak', V(-22, 1.5, -31.2), 0.8, { ref: 8 });
-      await g.until(() => l.pathIdx >= 6, 10);
+      await g.until(() => l.pathIdx >= 7, 10);
       l.setVisible(false);
       l.def.path = undefined;
       g.music.set('horror', 0.6, 5);
@@ -1577,7 +1582,7 @@ export class Story {
           await g.wait(0.5);
         }
       });
-      return { stop: () => (stop = true) };
+      return { stop: () => { stop = true; g.voice.stopAll(); } };
     };
     const musicSt = () => {
       const h = g.audio.play('loop_radio_static', { loop: true, volume: 0.05, ref: 1.5 }, pos);
@@ -1587,12 +1592,13 @@ export class Story {
       return { stop: () => { h?.stop(0.2); mu.set('cantina', 0, 0.3); mu.setPosition('cantina', g.market.cantinaPos); } };
     };
     const lucySong = () => {
+      let stop = false;
       g.music.playOrganillo(pos, true, 8, 70);
       g.tasks.run(async () => {
         await g.wait(2);
-        await g.say('Voz de niña', 'La, la, lalá… la, la…', 'radioLucia', pos);
+        if (!stop) await g.say('Voz de niña', 'La, la, lalá… la, la…', 'radioLucia', pos);
       });
-      return { stop: () => {} };
+      return { stop: () => { stop = true; g.voice.stopAll(); } };
     };
     this.puzzles.radio(
       [
@@ -1751,7 +1757,7 @@ export class Story {
     g.give('engrane_grande', true);
     g.give('engrane_enorme', true);
     g.sfx('gear_clank', g.market.drawer.position, 0.7);
-    g.ui.toast('Obtenido', 'Tres engranes de bronce');
+    g.ui.itemCard(itemIconFor('engrane_grande'), 'Tres engranes de bronce');
     g.tasks.run(async () => {
       await g.wait(0.6);
       const e = g.entity;
@@ -2103,7 +2109,7 @@ export class Story {
       this.npc.chayo.setVisible(true);
       this.npc.chema.setVisible(true);
       if (kind === 'normal') {
-        g.player.teleport(V(-3.2, 0.15, 11.4), Math.PI * 0.2);
+        g.player.teleport(V(-1.4, 0.15, 11.6), Math.PI * 0.15);
         this.taxi!.visible = true;
       } else {
         g.player.teleport(V(0, 0.3, -31.6), Math.PI);
@@ -2251,9 +2257,9 @@ export class Story {
         await g.think('Las velas están encendidas. Alguien las acaba de prender.');
         g.sfx('whisper_1', V(5.8, 1.6, -47.5), 0.45);
         await g.wait(1.2);
-        if (!this.flags.confessed) {
+        if (!this.flags.confessed && !g.player.hidden) {
           await g.think('¿Alguien en el confesionario?');
-          this.objective('Revisa el confesionario.');
+          if (!this.flags.confessed) this.objective('Revisa el confesionario.');
         }
       });
     }
@@ -2266,7 +2272,7 @@ export class Story {
       g.tasks.run(async () => {
         await g.think('El campanario. Desde aquí se ve toda la plaza.');
         await g.think('Aquí… aquí fue.');
-        this.objective('Examina el mecanismo de las campanas.');
+        if (this.stage === S.CANDLES) this.objective('Examina el mecanismo de las campanas.');
       });
     }
     if (z === 'callejon' && s >= S.KIOSK && !this.flags.enteredAlley) {
@@ -2423,7 +2429,7 @@ export class Story {
       once('chayo', 0.4, () => {
         const n = this.npc.chayo;
         n.setVisible(true);
-        n.play('sitting', 0);
+        n.play('idle', 0);
         this.chayoRebozo.visible = false;
         let seen = false;
         const check = () => {
@@ -2487,14 +2493,14 @@ export class Story {
     const s = this.stage;
     // prologue clock
     if (s === S.PROLOGUE) {
-      this.clockMin += dt / 18;
+      this.clockMin += dt / 13;
       const hh = Math.floor(this.clockMin / 60) % 24;
       const mm = Math.floor(this.clockMin % 60);
       const h12 = hh % 12 === 0 ? 12 : hh % 12;
       if (!this.flags.midnightStarted) g.ui.clock(`${h12}:${String(mm).padStart(2, '0')} ${hh >= 12 ? 'p.m.' : 'a.m.'}`);
       setClock(g.town.presidenciaClock, hh, mm);
       // crowd fades as people leave
-      const f = THREE.MathUtils.clamp((24 * 60 - this.clockMin) / 20, 0.25, 1);
+      const f = THREE.MathUtils.clamp((24 * 60 - this.clockMin) / 8, 0.25, 1);
       g.amb.set('crowd', f);
       // plaza music ducks near diegetic sources
       const dc = Math.min(g.player.pos.distanceTo(g.market.cantinaPos), g.player.pos.distanceTo(g.stage.musicianSpot));

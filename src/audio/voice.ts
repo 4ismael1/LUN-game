@@ -42,7 +42,15 @@ export const VOICES: Record<string, VoiceProfile> = {
 };
 
 export class VoiceSynth {
+  private active: GainNode[] = [];
   constructor(private a: AudioEngine) {}
+
+  /** silence lines currently being spoken (dialogue skip) */
+  stopAll() {
+    const t = this.a.ctx.currentTime;
+    for (const g of this.active) g.gain.setTargetAtTime(0, t, 0.03);
+    this.active = [];
+  }
 
   /** Speak text as babble; returns duration in seconds. */
   speak(text: string, prof: VoiceProfile, pos?: THREE.Vector3): number {
@@ -57,6 +65,7 @@ export class VoiceSynth {
       .filter(Boolean);
     const out = ctx.createGain();
     out.gain.value = prof.volume ?? 0.25;
+    this.active.push(out);
     let dest: AudioNode = out;
     let last: AudioNode = out;
     if (prof.radio) {
@@ -115,6 +124,7 @@ export class VoiceSynth {
     void dest;
     const total = t - ctx.currentTime;
     setTimeout(() => {
+      this.active = this.active.filter((x) => x !== out);
       try {
         out.disconnect();
       } catch {

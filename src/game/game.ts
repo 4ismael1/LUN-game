@@ -392,6 +392,7 @@ export class Game {
   }
 
   private startPlaying(init: () => void) {
+    this.ui.hide('title');
     this.ui.fade(1, 0.01);
     this.state = 'playing';
     this.overlay = null;
@@ -428,7 +429,8 @@ export class Game {
     if (!this.inventory.includes(id) || id === 'pilas') this.inventory.push(id);
     if (!silent) {
       this.audio.play(ITEMS[id]?.memory ? 'ui_note' : 'pickup_item', { bus: 'ui', volume: 0.6 });
-      this.ui.toast(ITEMS[id]?.memory ? 'Recuerdo' : 'Obtenido', ITEMS[id]?.name ?? id);
+      const it = ITEMS[id];
+      if (it) this.ui.itemCard(itemIcon(id), it.name, !!it.memory);
     }
     if (ITEMS[id]?.memory) this.story.onMemory(id);
   }
@@ -462,34 +464,108 @@ export class Game {
     this.input.requestLock();
   }
 
+  private invTab = 'items';
   openInventory() {
     this.overlay = 'inventory';
     this.input.exitLock();
     const grid = document.getElementById('inv-items')!;
-    grid.innerHTML = '';
     const detail = document.getElementById('inv-detail')!;
-    detail.textContent = 'Selecciona un objeto.';
-    const counts = new Map<string, number>();
-    for (const id of this.inventory) counts.set(id, (counts.get(id) ?? 0) + 1);
-    for (const [id, n] of counts) {
+    const docs = document.getElementById('inv-docs')!;
+    const photos = document.getElementById('inv-photos')!;
+    const tabs = document.querySelectorAll<HTMLButtonElement>('.inv-tab');
+    const showTab = (t: string) => {
+      this.invTab = t;
+      tabs.forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
+      grid.classList.toggle('hidden', t !== 'items');
+      docs.classList.toggle('hidden', t !== 'docs');
+      photos.classList.toggle('hidden', t !== 'photos');
+      detail.classList.toggle('hidden', t !== 'items');
+    };
+    tabs.forEach(
+      (b) =>
+        (b.onclick = () => {
+          this.audio.play('ui_click', { bus: 'ui', volume: 0.4 });
+          showTab(b.dataset.tab!);
+        }),
+    );
+    const renderDetail = (id: string | null) => {
+      detail.innerHTML = '';
+      if (!id) {
+        detail.innerHTML = '<div class="empty">Selecciona un objeto</div>';
+        return;
+      }
       const it = ITEMS[id];
-      if (!it) continue;
+      const big = document.createElement('div');
+      big.className = 'big';
+      big.appendChild(itemIcon(id));
+      detail.appendChild(big);
+      const h = document.createElement('h3');
+      h.textContent = it.name;
+      detail.appendChild(h);
+      const p = document.createElement('p');
+      let extra = '';
+      if (id === 'linterna') extra = ` Batería: ${Math.round(this.battery * 100)}% · pilas de repuesto: ${this.spares}.`;
+      if (id === 'camara') extra = ` Quedan ${this.film} fotos.`;
+      p.textContent = it.desc.replace(/\s*\(Tab.*?\)/, '') + extra;
+      detail.appendChild(p);
+      const action = (label: string, fn: () => void) => {
+        const b = document.createElement('button');
+        b.className = 'act';
+        b.textContent = label;
+        b.onclick = fn;
+        detail.appendChild(b);
+      };
+      if (id === 'tamal')
+        action('Comer', () => {
+          this.take('tamal');
+          this.player.stamina = 1;
+          this.player.exhausted = false;
+          this.audio.play('cloth_rustle', { bus: 'ui', volume: 0.5 });
+          this.closeInventory();
+          this.tasks.run(() => this.think('Rajas con queso. Sabe a las mañanas de Candelaria de cuando era niño.'));
+        });
+      if (id === 'linterna')
+        action(this.flashOn ? 'Guardar' : 'Sacar', () => {
+          this.closeInventory();
+          this.toggleFlash();
+        });
+    };
+    grid.innerHTML = '';
+    const counts = new Map<string, number>();
+    for (const id of this.inventory) if (ITEMS[id]) counts.set(id, (counts.get(id) ?? 0) + 1);
+    const ids = [...counts.keys()];
+    const total = Math.max(12, Math.ceil(ids.length / 4) * 4);
+    let first: HTMLElement | null = null;
+    for (let i = 0; i < total; i++) {
       const el = document.createElement('div');
-      el.className = 'inv-item';
-      el.appendChild(itemIcon(id));
-      const sp = document.createElement('span');
-      sp.textContent = it.name + (n > 1 ? ` ×${n}` : '');
-      el.appendChild(sp);
-      el.addEventListener('click', () => {
-        grid.querySelectorAll('.inv-item').forEach((x) => x.classList.remove('sel'));
-        el.classList.add('sel');
-        detail.textContent = it.desc + (id === 'linterna' ? ` Batería: ${Math.round(this.battery * 100)}%.` : '') + (id === 'camara' ? ` Quedan ${this.film} fotos.` : '');
-        this.audio.play('ui_click', { bus: 'ui', volume: 0.4 });
-      });
+      const id = ids[i];
+      el.className = 'inv-slot' + (id ? '' : ' empty') + (id && ITEMS[id].memory ? ' mem' : '');
+      if (id) {
+        el.appendChild(itemIcon(id));
+        const n = counts.get(id)!;
+        if (n > 1) {
+          const c = document.createElement('span');
+          c.className = 'cnt';
+          c.textContent = '×' + n;
+          el.appendChild(c);
+        }
+        el.title = ITEMS[id].name;
+        el.addEventListener('click', () => {
+          grid.querySelectorAll('.inv-slot').forEach((x) => x.classList.remove('sel'));
+          el.classList.add('sel');
+          this.audio.play('ui_click', { bus: 'ui', volume: 0.4 });
+          renderDetail(id);
+        });
+        if (!first) first = el;
+      }
       grid.appendChild(el);
     }
-    const docs = document.getElementById('inv-docs')!;
-    docs.innerHTML = '';
+    renderDetail(null);
+    if (first) {
+      first.classList.add('sel');
+      renderDetail(ids[0]);
+    }
+    docs.innerHTML = this.docs.length ? '' : '<div class="note">Todavía no has leído nada.</div>';
     for (const d of this.docs) {
       const b = document.createElement('button');
       b.className = 'inv-doc';
@@ -500,6 +576,7 @@ export class Game {
       });
       docs.appendChild(b);
     }
+    photos.innerHTML = this.photos.length ? '' : '<div class="note">No has tomado fotografías.</div>';
     this.photos.forEach((p) => {
       const el = document.createElement('div');
       el.className = 'inv-photo';
@@ -512,10 +589,11 @@ export class Game {
         this.read({ id: 'photo-view', title: 'Foto', html: `<img src="${p.url}" alt=""/>${p.caption}`, cls: 'photo' });
         this.docs = this.docs.filter((x) => x.id !== 'photo-view');
       });
-      docs.appendChild(el);
+      photos.appendChild(el);
     });
     const mem = this.memories().length;
-    document.getElementById('inv-memories')!.textContent = mem ? `Recuerdos recuperados: ${mem} de 5` : '';
+    document.getElementById('inv-memories')!.textContent = mem ? `✦ Recuerdos: ${mem} de 5` : '';
+    showTab(this.invTab);
     this.ui.push('inventory');
     this.audio.play('cloth_rustle', { bus: 'ui', volume: 0.6 });
   }
@@ -532,12 +610,12 @@ export class Game {
     const gen = this.tasks.gen;
     const prof = VOICES[voiceKey] ?? VOICES.julian;
     const d = this.voice.speak(text, prof, pos);
-    await this.ui.sub(who, text, Math.max(minDur, d + 0.5, 1.6 + text.length * 0.045));
+    await this.ui.sub(who, text, Math.max(minDur, d * 0.9 + 0.35, 1.3 + text.length * 0.036));
     this.tasks.check(gen);
   }
   async think(text: string, dur?: number) {
     const gen = this.tasks.gen;
-    await this.ui.sub('', text, dur ?? Math.max(2.2, 1.2 + text.length * 0.055), true);
+    await this.ui.sub('', text, dur ?? Math.max(2.0, 1.1 + text.length * 0.045), true);
     this.tasks.check(gen);
   }
   wait(s: number) {
@@ -596,7 +674,8 @@ export class Game {
       return;
     }
     this.flashOn = !this.flashOn;
-    this.sfx('flashlight_click', undefined, 0.6);
+    this.sfx('cloth_rustle', undefined, 0.25);
+    this.sfx('flashlight_click', undefined, 0.6, { delay: this.flashOn ? 0.18 : 0 });
     this.player.emit(3, 'click');
   }
 
@@ -634,14 +713,14 @@ export class Game {
     }
     // warm tint when weak
     this.flashlight.color.setRGB(1, 0.94 - (1 - this.battery) * 0.06, 0.84 - (1 - this.battery) * 0.16);
-    const held = this.hasFlashlight && !this.cameraRaised && !this.player.hidden && this.state === 'playing';
+    const held = this.hasFlashlight && this.flashOn && !this.cameraRaised && !this.player.hidden && this.state === 'playing';
     this.hand.setHeld(held);
     const q = settings.quality;
     const wantShadow = this.flashOn && q !== 'bajo';
     if (this.flashlight.castShadow !== wantShadow) {
       this.flashlight.castShadow = wantShadow;
     }
-    this.hand.update(dt, this.flashOn && (held || this.player.hidden === null), f, this.player.lastDX, this.player.lastDY, this.player.moveSpeed, this.player.running, (o, d, m) => this.world.col.rayDist(o, d, m));
+    this.hand.update(dt, this.flashOn && !this.player.hidden, f * this.hand.raise, this.player.lastDX, this.player.lastDY, this.player.moveSpeed, this.player.running, (o, d, m) => this.world.col.rayDist(o, d, m));
     this.ui.battery(this.hasFlashlight ? this.battery : null);
   }
 
@@ -916,16 +995,44 @@ export class Game {
     }
   }
 
+  private markerEls: HTMLDivElement[] = [];
+  private markerBox = document.getElementById('markers')!;
+
+  private marker(i: number): HTMLDivElement {
+    let m = this.markerEls[i];
+    if (!m) {
+      m = document.createElement('div');
+      m.className = 'mk';
+      this.markerBox.appendChild(m);
+      this.markerEls[i] = m;
+    }
+    return m;
+  }
+
   updateInteraction(dt: number) {
     const p = this.player;
+    let used = 0;
+    const hideMarkers = () => {
+      for (let i = used; i < this.markerEls.length; i++) this.markerEls[i].style.display = 'none';
+    };
     if (this.state !== 'playing' || this.overlay || !this.input.locked) {
       this.ui.prompt(null);
       this.ui.hold(null);
+      hideMarkers();
+      return;
+    }
+    // dialogue: E / Space / click advances the current line
+    if (this.ui.subActive && this.ui.subIsDialogue && (this.input.hit('KeyE') || this.input.hit('Space') || (this.input.mouseClicked && !this.cameraRaised))) {
+      this.voice.stopAll();
+      this.ui.skipSub();
+      this.ui.prompt(null);
+      hideMarkers();
       return;
     }
     if (p.hidden) {
       this.ui.prompt('<kbd>E</kbd>Salir del escondite');
       if (this.input.hit('KeyE')) this.exitHide();
+      hideMarkers();
       return;
     }
     const cam = this.engine.camera;
@@ -934,10 +1041,10 @@ export class Game {
     cam.getWorldDirection(fwd);
     let best: Interactable | null = null;
     let bestScore = Infinity;
+    const near: { it: Interactable; d: number }[] = [];
     for (const it of this.world.interactables) {
-      const reach = it.reach ?? 2.3;
-      const d = it.pos.distanceTo(eye);
-      if (d > reach + it.radius) continue;
+      const d0 = it.pos.distanceTo(eye);
+      if (d0 > 6) continue;
       let en = false;
       try {
         en = it.enabled();
@@ -948,11 +1055,16 @@ export class Game {
       const to = this.tmpV.copy(it.pos).sub(eye);
       const dist = to.length();
       to.normalize();
-      const ang = Math.acos(THREE.MathUtils.clamp(to.dot(fwd), -1, 1));
-      const allow = Math.max(0.18, Math.atan2(it.radius, dist));
+      const dot = to.dot(fwd);
+      if (dot < 0.2) continue;
+      if (dist > 1.2 && this.world.col.blocked(eye, eye.clone().lerp(it.pos, 0.85))) continue;
+      if (!it.id.startsWith('door:')) near.push({ it, d: dist });
+      const reach = (it.reach ?? 2.3) + 0.4;
+      if (dist > reach + it.radius) continue;
+      const ang = Math.acos(THREE.MathUtils.clamp(dot, -1, 1));
+      const allow = Math.max(0.32, Math.atan2(it.radius + 0.3, dist));
       if (ang > allow) continue;
-      if (dist > 1.3 && this.world.col.blocked(eye, eye.clone().lerp(it.pos, 0.85))) continue;
-      const score = ang + dist * 0.05;
+      const score = ang / allow + dist * 0.08;
       if (score < bestScore) {
         bestScore = score;
         best = it;
@@ -962,14 +1074,32 @@ export class Game {
       this.focus = best;
       this.holdT = 0;
     }
+    // world markers: small dots for nearby things you can use, a ring + label on the focused one
+    if (best && !near.find((n) => n.it === best)) near.push({ it: best, d: best.pos.distanceTo(eye) });
+    near.sort((a, b) => a.d - b.d);
+    const W = window.innerWidth, H = window.innerHeight;
+    const v = new THREE.Vector3();
+    for (const n of near.slice(0, 8)) {
+      v.copy(n.it.pos).project(cam);
+      if (v.z > 1) continue;
+      const m = this.marker(used++);
+      m.style.display = 'block';
+      m.style.left = ((v.x + 1) / 2) * W + 'px';
+      m.style.top = ((1 - v.y) / 2) * H + 'px';
+      const focus = n.it === best;
+      m.classList.toggle('focus', focus);
+      m.style.opacity = focus ? '1' : String(THREE.MathUtils.clamp(1.2 - n.d / 5, 0.25, 0.9));
+      if (focus) m.dataset.label = typeof n.it.prompt === 'function' ? n.it.prompt() : n.it.prompt;
+    }
+    hideMarkers();
     if (!best) {
       this.ui.prompt(null);
       this.ui.hold(null);
       return;
     }
-    const label = typeof best.prompt === 'function' ? best.prompt() : best.prompt;
-    this.ui.prompt(`<kbd>E</kbd>${label}`);
-    this.story.hintOnce('interact', '<kbd>E</kbd> interactuar', 4);
+    // label is drawn by the marker; keep the center prompt only for hold actions
+    this.ui.prompt(best.hold ? '<kbd>E</kbd>mantener' : null);
+    this.story.hintOnce('interact', '<kbd>E</kbd> interactuar con lo que está marcado', 4);
     if (best.hold) {
       if (this.input.down('KeyE')) {
         this.holdT += dt;
@@ -985,6 +1115,7 @@ export class Game {
       }
     } else if (this.input.hit('KeyE')) {
       best.onUse();
+      this.sfx('ui_click', undefined, 0.15, { bus: 'ui' });
     }
   }
 

@@ -27,7 +27,7 @@
       <div class="title-wrap">
         <div class="papel-row big" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <h1 class="game-title">La Última Noche</h1>
-        <p class="subtitle">Jardín del Carmen · 1 de febrero · 11:40 p.m.</p>
+        <p class="subtitle">Jardín del Carmen · 1 de febrero · 11:52 p.m.</p>
         <nav class="menu" id="main-menu">
           <button data-act="play">Jugar</button>
           <button data-act="continue" id="btn-continue" class="hidden">Continuar</button>
@@ -113,6 +113,8 @@
       <div id="subs"></div>
       <div id="toast"></div>
       <div id="stamina"><i></i></div>
+      <div id="itemcard"><div class="ring"><canvas width="64" height="64"></canvas></div><div class="nm"></div><div class="sub">Guardado en el inventario · <kbd>Tab</kbd></div></div>
+      <div id="markers"></div>
     </div>
     <div id="viewfinder" class="hidden"><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div><span id="vf-count"></span></div>
     <div id="hideview" class="hidden"></div>
@@ -121,14 +123,15 @@
 
     <!-- INVENTORY -->
     <div id="inventory" class="screen panel-screen">
-      <div class="panel wide">
-        <h2>Lo que llevas</h2>
-        <div class="inv-grid" id="inv-items"></div>
-        <div id="inv-detail"></div>
-        <h3>Notas y fotografías</h3>
-        <div class="inv-docs" id="inv-docs"></div>
-        <p class="note" id="inv-memories"></p>
-        <button class="back" data-act="close-inv">Cerrar (Tab)</button>
+      <div class="inv">
+        <div class="inv-tabs"><button class="inv-tab on" data-tab="items">Objetos</button><button class="inv-tab" data-tab="docs">Notas</button><button class="inv-tab" data-tab="photos">Fotos</button><span id="inv-memories"></span></div>
+        <div class="inv-body">
+          <div class="inv-slots" id="inv-items"></div>
+          <div class="inv-docs hidden" id="inv-docs"></div>
+          <div class="inv-photos hidden" id="inv-photos"></div>
+          <div class="inv-detail" id="inv-detail"></div>
+        </div>
+        <div class="inv-foot"><span><kbd>Tab</kbd> cerrar</span><button class="back" data-act="close-inv">Cerrar</button></div>
       </div>
     </div>
 

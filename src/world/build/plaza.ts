@@ -21,6 +21,9 @@ export interface PlazaRefs {
   candlesFountain: THREE.Group;
 }
 
+/** extra yaw so the bench model's seat faces the given direction */
+export const BENCH_MODEL_YAW = 0;
+
 const PAPEL_COLORS = ['#e0357a', '#f28c28', '#3fae5a', '#2f7fd0', '#f2cf3a', '#8a44b8', '#e8e2d8'];
 
 /** foliage material with wind sway */
@@ -241,15 +244,15 @@ export function buildPlaza(w: World): PlazaRefs {
     w.solid(x, 0.15, z, 1.9 * c + 0.6 * s, 0.5, 1.9 * s + 0.6 * c, { opaque: false });
   };
   for (const s of [-1, 1]) {
-    addBench(3.4, 13 * s, -Math.PI / 2);
-    addBench(-3.4, 13 * s, Math.PI / 2);
-    addBench(13 * s, 3.4, s > 0 ? Math.PI : 0);
-    addBench(13 * s, -3.4, s > 0 ? 0 : Math.PI);
+    addBench(2.45, 13 * s, -Math.PI / 2);
+    addBench(-2.45, 13 * s, Math.PI / 2);
+    addBench(13 * s, 2.45, Math.PI);
+    addBench(13 * s, -2.45, 0);
     addBench(21 * s, 9, s > 0 ? -Math.PI / 2 : Math.PI / 2);
     addBench(21 * s, -9, s > 0 ? -Math.PI / 2 : Math.PI / 2);
   }
   // fix orientation: benches face the path (their local +z faces the sitter's front)
-  const benchGroup = w.assets.instanced('bench', benchT, { width: 1.9 });
+  const benchGroup = w.assets.instanced('bench', benchT.map((b) => ({ pos: b.pos, rotY: b.rotY + BENCH_MODEL_YAW })), { width: 1.9 });
   if (benchGroup) w.scene.add(benchGroup);
   else
     for (const b of benchT) {

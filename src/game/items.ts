@@ -29,6 +29,10 @@ export const ITEMS: Record<string, ItemDef> = {
     id: 'pilas', name: 'Pilas', desc: 'Pilas de repuesto. Se usan solas cuando la linterna se apaga.',
     draw: (g) => { stroke(g); g.strokeRect(18, 16, 12, 34); g.strokeRect(34, 16, 12, 34); g.fillStyle = ink; g.fillRect(21, 12, 6, 4); g.fillRect(37, 12, 6, 4); },
   },
+  tamal: {
+    id: 'tamal', name: 'Tamal de rajas', desc: 'Envuelto en hoja de maíz, todavía caliente. Regalo de Don Beto. (Tab → clic para comerlo: recupera el aliento.)',
+    draw: (g) => { g.fillStyle = '#c8b070'; g.beginPath(); g.moveTo(14, 40); g.quadraticCurveTo(32, 14, 52, 26); g.quadraticCurveTo(40, 48, 14, 40); g.fill(); g.strokeStyle = '#8a7040'; g.lineWidth = 2; g.beginPath(); g.moveTo(18, 38); g.lineTo(48, 28); g.stroke(); },
+  },
   cerillos: {
     id: 'cerillos', name: 'Cerillos', desc: '«Cerillos La Central». Don Beto te los dio «pa\' que te alumbres».',
     draw: (g) => { stroke(g); g.strokeRect(14, 22, 36, 22); g.fillStyle = '#c2386e'; g.fillRect(16, 24, 32, 6); stroke(g, 2); g.beginPath(); g.moveTo(40, 18); g.lineTo(52, 6); g.stroke(); g.fillStyle = '#e3a13d'; g.beginPath(); g.arc(52, 6, 3, 0, 7); g.fill(); },

@@ -136,6 +136,8 @@ export class Puzzles {
     let current: { stop: () => void } | null = null;
     let currentFreq = -1;
     let tunedTime = 0;
+    let candidate = -1;
+    let candT = 0;
     const tunedFired = new Set<number>();
     this.open('radio', html, () => {});
     const cv = this.box.querySelector('#pz-dial') as HTMLCanvasElement;
@@ -187,17 +189,21 @@ export class Puzzles {
       const clarity = best ? Math.max(0, 1 - bd / 14) : 0;
       staticH?.setVolume(0.08 + (1 - clarity) * 0.5, 0.05);
       if (best && bd < 9) {
-        if (currentFreq !== best.freq) {
+        if (currentFreq !== best.freq && candidate !== best.freq) {
           current?.stop();
-          current = best.play();
-          currentFreq = best.freq;
-          tunedTime = 0;
-          fb.textContent = best.name;
+          current = null;
+          currentFreq = -1;
+          candidate = best.freq;
+          candT = 0;
+          fb.textContent = '…';
         }
-      } else if (current) {
-        current.stop();
-        current = null;
-        currentFreq = -1;
+      } else {
+        candidate = -1;
+        if (current) {
+          current.stop();
+          current = null;
+          currentFreq = -1;
+        }
         fb.textContent = '';
       }
       draw();
@@ -230,6 +236,18 @@ export class Puzzles {
       if (e.key === 'ArrowRight' || e.key === 'd') setF(freq + 5);
     });
     const iv = window.setInterval(() => {
+      // a station only starts once the dial rests on it (no triggering while sweeping)
+      if (candidate > 0 && currentFreq !== candidate) {
+        candT += 0.1;
+        if (candT >= 0.35) {
+          const st = stations.find((x) => x.freq === candidate)!;
+          current = st.play();
+          currentFreq = candidate;
+          candidate = -1;
+          tunedTime = 0;
+          fb.textContent = st.name;
+        }
+      }
       if (currentFreq > 0) {
         tunedTime += 0.1;
         const st = stations.find((s) => s.freq === currentFreq);
