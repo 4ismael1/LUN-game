@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>La Última Noche</title>
+    <meta name="description" content="La Última Noche — horror psicológico en primera persona en una plaza colonial mexicana." />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- LOADING -->
+    <div id="loading" class="screen show">
+      <div class="load-inner">
+        <div class="papel-row" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <h1 class="title-small">La Última Noche</h1>
+        <div class="load-bar"><div id="load-fill"></div></div>
+        <p id="load-label">Preparando la plaza…</p>
+        <p class="load-tip">Se recomienda usar audífonos.</p>
+      </div>
+    </div>
+
+    <!-- TITLE / MENU -->
+    <div id="title" class="screen">
+      <div class="title-wrap">
+        <div class="papel-row big" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <h1 class="game-title">La Última Noche</h1>
+        <p class="subtitle">Jardín del Carmen · 1 de febrero · 11:40 p.m.</p>
+        <nav class="menu" id="main-menu">
+          <button data-act="play">Jugar</button>
+          <button data-act="continue" id="btn-continue" class="hidden">Continuar</button>
+          <button data-act="controls">Controles</button>
+          <button data-act="settings">Ajustes</button>
+          <button data-act="credits">Créditos</button>
+        </nav>
+        <p class="hint-foot">Audífonos recomendados · Duración aproximada: 35–50 minutos</p>
+      </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div id="controls" class="screen panel-screen">
+      <div class="panel">
+        <h2>Controles</h2>
+        <table class="keys">
+          <tr><td><kbd>W A S D</kbd></td><td>Caminar</td></tr>
+          <tr><td><kbd>Ratón</kbd></td><td>Mirar</td></tr>
+          <tr><td><kbd>Shift</kbd></td><td>Correr (cansa)</td></tr>
+          <tr><td><kbd>C</kbd> / <kbd>Ctrl</kbd></td><td>Agacharse (más silencioso)</td></tr>
+          <tr><td><kbd>E</kbd></td><td>Interactuar · mantener para acciones largas</td></tr>
+          <tr><td><kbd>F</kbd></td><td>Linterna</td></tr>
+          <tr><td><kbd>Q</kbd> / <kbd>Clic der.</kbd></td><td>Levantar la cámara · <kbd>Clic</kbd> fotografiar</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>Inventario, notas y fotografías</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Pausa</td></tr>
+        </table>
+        <p class="note">Consejo: <kbd>Ctrl</kbd>+<kbd>W</kbd> cierra la pestaña en algunos navegadores; usa <kbd>C</kbd> para agacharte mientras caminas.</p>
+        <button class="back" data-act="back">Volver</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="settings" class="screen panel-screen">
+      <div class="panel">
+        <h2>Ajustes</h2>
+        <div class="setting"><label>Volumen general</label><input type="range" min="0" max="1" step="0.05" data-set="master" /></div>
+        <div class="setting"><label>Música</label><input type="range" min="0" max="1" step="0.05" data-set="music" /></div>
+        <div class="setting"><label>Efectos y ambiente</label><input type="range" min="0" max="1" step="0.05" data-set="sfx" /></div>
+        <div class="setting"><label>Sensibilidad del ratón</label><input type="range" min="0.2" max="3" step="0.05" data-set="sensitivity" /></div>
+        <div class="setting"><label>Campo de visión</label><input type="range" min="60" max="95" step="1" data-set="fov" /></div>
+        <div class="setting"><label>Brillo</label><input type="range" min="0.7" max="1.6" step="0.05" data-set="brightness" /></div>
+        <div class="setting"><label>Calidad gráfica</label>
+          <select data-set="quality"><option value="bajo">Baja</option><option value="medio">Media</option><option value="alto">Alta</option></select></div>
+        <div class="setting"><label>Subtítulos</label><input type="checkbox" data-set="subtitles" /></div>
+        <div class="setting"><label>Invertir eje Y</label><input type="checkbox" data-set="invertY" /></div>
+        <button class="back" data-act="back">Volver</button>
+      </div>
+    </div>
+
+    <!-- CREDITS -->
+    <div id="credits" class="screen panel-screen">
+      <div class="panel credits-panel">
+        <h2>Créditos</h2>
+        <div id="credits-body"></div>
+        <button class="back" data-act="back">Volver</button>
+      </div>
+    </div>
+
+    <!-- PAUSE -->
+    <div id="pause" class="screen panel-screen">
+      <div class="panel narrow">
+        <h2>Pausa</h2>
+        <nav class="menu">
+          <button data-act="resume">Continuar</button>
+          <button data-act="checkpoint">Reiniciar desde el último punto</button>
+          <button data-act="settings">Ajustes</button>
+          <button data-act="controls">Controles</button>
+          <button data-act="restart">Reiniciar la noche</button>
+          <button data-act="quit">Salir al menú</button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="objective"><span class="obj-label">Objetivo</span><span id="obj-text"></span></div>
+      <div id="clock"></div>
+      <div id="status"><div id="battery"><i></i></div><div id="film"></div></div>
+      <div id="crosshair"></div>
+      <div id="prompt"></div>
+      <div id="hold"><i></i></div>
+      <div id="hint"></div>
+      <div id="subs"></div>
+      <div id="toast"></div>
+      <div id="stamina"><i></i></div>
+    </div>
+    <div id="viewfinder" class="hidden"><div class="vf-corner tl"></div><div class="vf-corner tr"></div><div class="vf-corner bl"></div><div class="vf-corner br"></div><span id="vf-count"></span></div>
+    <div id="hideview" class="hidden"></div>
+    <div id="flash"></div>
+    <div id="fade"></div>
+
+    <!-- INVENTORY -->
+    <div id="inventory" class="screen panel-screen">
+      <div class="panel wide">
+        <h2>Lo que llevas</h2>
+        <div class="inv-grid" id="inv-items"></div>
+        <div id="inv-detail"></div>
+        <h3>Notas y fotografías</h3>
+        <div class="inv-docs" id="inv-docs"></div>
+        <p class="note" id="inv-memories"></p>
+        <button class="back" data-act="close-inv">Cerrar (Tab)</button>
+      </div>
+    </div>
+
+    <!-- READER -->
+    <div id="reader" class="screen panel-screen">
+      <div class="paper" id="reader-paper"></div>
+      <p class="reader-close">[E] / clic para cerrar</p>
+    </div>
+
+    <!-- PUZZLE -->
+    <div id="puzzle" class="screen panel-screen">
+      <div class="puzzle-box" id="puzzle-box"></div>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameover" class="screen">
+      <div class="go-wrap">
+        <h1 class="go-title">La noche vuelve a empezar</h1>
+        <p id="go-sub"></p>
+        <nav class="menu">
+          <button data-act="retry">Reintentar</button>
+          <button data-act="quit">Menú principal</button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- ENDING -->
+    <div id="ending" class="screen">
+      <div class="end-wrap">
+        <p class="end-kicker" id="end-kicker"></p>
+        <h1 class="end-title" id="end-title"></h1>
+        <div id="end-text"></div>
+        <div id="end-stats"></div>
+        <nav class="menu">
+          <button data-act="again">Jugar de nuevo</button>
+          <button data-act="credits">Créditos</button>
+          <button data-act="quit">Menú principal</button>
+        </nav>
+      </div>
+    </div>
+
+    <div id="lockhint" class="hidden">Haz clic para continuar</div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
