@@ -35,7 +35,7 @@ function foliageMaterial(w: World, tex: THREE.Texture | undefined, color: number
     side: THREE.DoubleSide,
     roughness: 0.75,
     transparent: false,
-    emissive: 0x0c160c,
+    emissive: 0x24361f,
   });
   if (tex) mat.emissiveMap = tex;
   if (!tex) mat.color.set(0x2b4a2a);
@@ -193,7 +193,7 @@ export function buildPlaza(w: World): PlazaRefs {
     }
   let treeFoliage: THREE.InstancedMesh | null = null;
   {
-    const leafTex = w.assets.tex('leaves/leaves.png');
+    const leafTex = w.assets.tex('leaves/cluster.png');
     const leafMat = foliageMaterial(w, leafTex, 0x9fb890);
     const card = new THREE.PlaneGeometry(1.1, 1.1);
     const mats: THREE.Matrix4[] = [];

@@ -67,12 +67,23 @@ export class Input {
     });
   }
 
+  /** called when the browser refuses the pointer lock (so the UI can ask for a click) */
+  onLockFail: () => void = () => {};
+
   requestLock() {
+    const retry = () => {
+      try {
+        const p2 = (this.el as any).requestPointerLock();
+        if (p2 && typeof p2.catch === 'function') p2.catch(() => this.onLockFail());
+      } catch {
+        this.onLockFail();
+      }
+    };
     try {
       const p = (this.el as any).requestPointerLock({ unadjustedMovement: false });
-      if (p && typeof p.catch === 'function') p.catch(() => (this.el as any).requestPointerLock());
+      if (p && typeof p.catch === 'function') p.catch(retry);
     } catch {
-      (this.el as any).requestPointerLock();
+      retry();
     }
   }
 

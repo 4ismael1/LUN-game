@@ -1,10 +1,54 @@
 import * as THREE from 'three';
 import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { AudioEngine } from '../audio/audio';
 
 export const BASE = './assets/';
+
+/**
+ * Physical materials (transmission glass, clearcoat) force an extra full-scene render
+ * pass every frame and add shader variants; plain standard materials look the same at night.
+ */
+function simplifyMaterials(root: THREE.Object3D) {
+  const swap = new Map<THREE.Material, THREE.Material>();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const conv = (m: THREE.Material) => {
+      const p = m as THREE.MeshPhysicalMaterial;
+      if (!p.isMeshPhysicalMaterial) return m;
+      let s = swap.get(m);
+      if (!s) {
+        const glass = p.transmission > 0 || p.transparent;
+        const std = new THREE.MeshStandardMaterial({
+          name: p.name,
+          color: p.color,
+          map: p.map,
+          normalMap: p.normalMap,
+          roughness: p.roughness,
+          roughnessMap: p.roughnessMap,
+          metalness: p.metalness,
+          metalnessMap: p.metalnessMap,
+          emissive: p.emissive,
+          emissiveMap: p.emissiveMap,
+          emissiveIntensity: p.emissiveIntensity,
+          alphaMap: p.alphaMap,
+          alphaTest: p.alphaTest,
+          side: p.side,
+          transparent: glass,
+          opacity: glass ? Math.min(p.opacity, 0.45) : p.opacity,
+          depthWrite: !glass,
+        });
+        swap.set(m, std);
+        s = std;
+      }
+      return s;
+    };
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(conv) : conv(mesh.material);
+  });
+}
 
 export class Assets {
   textures = new Map<string, THREE.Texture>();
@@ -12,7 +56,7 @@ export class Assets {
   hdr: THREE.DataTexture | null = null;
   missing: string[] = [];
   private texLoader = new THREE.TextureLoader();
-  private gltfLoader = new GLTFLoader();
+  private gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   private modelInfo = new Map<string, { box: THREE.Box3; size: THREE.Vector3 }>();
 
   async loadAll(
@@ -41,6 +85,7 @@ export class Assets {
         run: async () => {
           try {
             const g = await this.gltfLoader.loadAsync(BASE + 'models/' + m + '.glb');
+            simplifyMaterials(g.scene);
             this.models.set(m, g);
           } catch {
             this.missing.push('models/' + m);
@@ -85,6 +130,23 @@ export class Assets {
     };
     await Promise.all(new Array(6).fill(0).map(worker));
     if (this.missing.length) console.warn('[assets] missing:', this.missing);
+  }
+
+  /** Load sounds that aren't needed for the title / first minutes, without blocking. */
+  loadAudioBackground(names: string[], audio: AudioEngine, concurrency = 3): Promise<void> {
+    let idx = 0;
+    const worker = async () => {
+      while (idx < names.length) {
+        const a = names[idx++];
+        if (audio.has(a)) continue;
+        try {
+          await audio.load(a, BASE + 'audio/' + a + '.mp3');
+        } catch {
+          this.missing.push('audio/' + a);
+        }
+      }
+    };
+    return Promise.all(new Array(concurrency).fill(0).map(worker)).then(() => undefined);
   }
 
   tex(name: string) {

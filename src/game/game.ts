@@ -38,6 +38,12 @@ export const AUDIO_LIST = (
   'bell_church bell_church_far bell_small bells_toll_sequence birds_dawn bottle_clink broom_sweep bus_pass camera_eject camera_shutter candle_whoosh car_horn_far car_pass cat_meow chain_rattle chair_drag child_laugh child_run clock_tick cloth_rustle creature_breath creature_growl creature_scream creature_step dog_bark_1 dog_bark_2 dog_howl door_close door_creak door_locked door_open door_slam electric_spark flashlight_click footsteps_behind gate_iron_creak gear_clank glass_break jingle_bells_small lock_unlock loop_breath_heavy loop_creaking_wood loop_crickets loop_crowd_distant loop_electric_hum loop_flags loop_fountain loop_heartbeat loop_radio_static loop_rain_light loop_room_church loop_traffic_distant loop_wind loop_wind_strong match_strike mechanism_ratchet metal_creak metal_shutter motorbike_far music_box_wind organ_crank owl_hoot pickup_item pickup_paper plates_clatter power_down power_up radio_click_on radio_tune riser rooster_crow slam_wood step_grass_1 step_grass_2 step_grass_3 step_grass_4 step_stone_1 step_stone_2 step_stone_3 step_stone_4 step_stone_5 step_tile_1 step_tile_2 step_tile_3 step_tile_4 step_wood_1 step_wood_2 step_wood_3 step_wood_4 step_wood_5 stinger_low switch_click thunder_1 thunder_2 ui_back ui_click ui_confirm ui_hover ui_note whisper_1 whisper_2 whisper_3 wood_creak_1 wood_creak_2'
 ).split(' ');
 
+/** sounds needed on the title and in the first minutes of the prologue */
+const CORE_AUDIO = /^(ui_|step_|loop_(wind|crickets|flags)$|pickup_|flashlight_click|cloth_rustle)/;
+/** background queue order: prologue first, then what midnight needs */
+const SOON_AUDIO = [/^loop_(crowd|traffic|fountain|electric)|car_pass|bus_pass|plates_clatter|metal_shutter|dog_bark/, /^bell|riser|power_down|stinger|creature/];
+const nextFrame = () => new Promise<void>((r) => setTimeout(r, 16));
+
 export type GameState = 'loading' | 'title' | 'playing' | 'paused' | 'dead' | 'ending';
 
 export interface Doc {
@@ -132,6 +138,8 @@ export class Game {
     this.photoCanvas.width = 480;
     this.photoCanvas.height = 360;
     (window as any).__drawSymbol = drawSymbol;
+    // fog must exist before shaders are warmed up, otherwise the first frame recompiles everything
+    this.engine.scene.fog = new THREE.FogExp2(this.fogColor.getHex(), this.fogDensity);
     this.bindInput();
     onSettings(() => {
       this.engine.camera.fov = settings.fov;
@@ -142,16 +150,15 @@ export class Game {
   // ---------------------------------------------------------------- loading
   async load() {
     const ui = this.ui;
-    ui.setLoading(0.02, 'Tipografías…');
-    try {
-      await Promise.all(['Cormorant Garamond', 'Alfa Slab One', 'Lobster', 'Caveat', 'IM Fell English SC', 'Special Elite'].map((f) => document.fonts.load(`32px "${f}"`)));
-    } catch {
-      /* fonts optional */
-    }
+    ui.setLoading(0.02, 'Preparando…');
+    // fonts are needed by the canvas signs; load them alongside everything else
+    const fonts = Promise.all(['Cormorant Garamond', 'Alfa Slab One', 'Lobster', 'Caveat', 'IM Fell English SC', 'Special Elite'].map((f) => document.fonts.load(`32px "${f}"`))).catch(() => undefined);
     const textures: string[] = [];
     for (const s of TEXTURE_SETS) for (const k of ['diff', 'nor', 'rough']) textures.push(`${s}/${k}.jpg`);
     textures.push('leaves/cluster.png', 'vines/cluster.png');
-    await this.assets.loadAll({ textures, models: MODEL_LIST, audio: AUDIO_LIST, hdr: 'night_1k.hdr' }, this.audio, (f, label) => ui.setLoading(0.05 + f * 0.7, `Cargando ${label}…`));
+    const core = AUDIO_LIST.filter((a) => CORE_AUDIO.test(a));
+    await this.assets.loadAll({ textures, models: MODEL_LIST, audio: core, hdr: 'night_1k.hdr' }, this.audio, (f, label) => ui.setLoading(0.03 + f * 0.67, `Cargando ${label}…`));
+    await fonts;
     for (const s of TEXTURE_SETS) this.mats.setTextures(s, { diff: this.assets.tex(`${s}/diff.jpg`), nor: this.assets.tex(`${s}/nor.jpg`), rough: this.assets.tex(`${s}/rough.jpg`) });
     for (const k of ['leaves/cluster.png', 'vines/cluster.png']) {
       const t = this.assets.tex(k);
@@ -163,15 +170,66 @@ export class Game {
       this.mats.envMap = pm.fromEquirectangular(this.assets.hdr).texture;
       pm.dispose();
     }
-    ui.setLoading(0.78, 'Levantando la plaza…');
-    await new Promise((r) => setTimeout(r, 20));
+    ui.setLoading(0.72, 'Levantando la plaza…');
+    await nextFrame();
     this.buildWorld();
-    ui.setLoading(0.88, 'Afinando la música…');
-    await this.music.prewarm((f) => ui.setLoading(0.88 + f * 0.1, 'Afinando la música…'));
+    ui.setLoading(0.84, 'Encendiendo los faroles…');
+    // shader compilation reports no progress; creep the bar so it never looks stuck
+    let creep = 0.84;
+    const creepT = window.setInterval(() => ui.setLoading((creep += (0.98 - creep) * 0.12), 'Encendiendo los faroles…'), 120);
+    await nextFrame();
+    await this.warmup();
+    clearInterval(creepT);
     ui.setLoading(1, 'Listo');
-    // warm up shaders
-    this.engine.renderer.compile(this.engine.scene, this.engine.camera);
     (document.getElementById('credits-body') as HTMLElement).innerHTML = CREDITS_HTML;
+  }
+
+  /** Runs once the title is on screen: the rest of the sounds and the music samples. */
+  loadRest() {
+    const rest = AUDIO_LIST.filter((a) => !CORE_AUDIO.test(a));
+    const rank = (a: string) => {
+      const i = SOON_AUDIO.findIndex((r) => r.test(a));
+      return i < 0 ? SOON_AUDIO.length : i;
+    };
+    rest.sort((a, b) => rank(a) - rank(b));
+    this.assets.loadAudioBackground(rest, this.audio).then(() => {
+      if (this.assets.missing.length) console.warn('[assets] missing:', this.assets.missing);
+    });
+    this.music.prewarm();
+  }
+
+  /**
+   * Compile every shader and upload every texture before the title shows, including
+   * objects that are hidden right now (culled props, NPCs, the entity, the hand light),
+   * so pressing "Jugar" doesn't stall on the first frames.
+   */
+  private async warmup() {
+    const r = this.engine.renderer;
+    const scene = this.engine.scene;
+    const hidden: THREE.Object3D[] = [];
+    const texs = new Set<THREE.Texture>();
+    scene.traverse((o) => {
+      if (!o.visible && !(o as THREE.Light).isLight) {
+        hidden.push(o);
+        o.visible = true;
+      }
+      const mat = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (!mat) return;
+      for (const m of Array.isArray(mat) ? mat : [mat])
+        for (const v of Object.values(m)) if (v && (v as THREE.Texture).isTexture) texs.add(v as THREE.Texture);
+    });
+    for (const t of texs) r.initTexture(t);
+    try {
+      await r.compileAsync(scene, this.engine.camera);
+    } catch {
+      r.compile(scene, this.engine.camera);
+    }
+    // one real frame from the spawn point builds shadow / depth programs too
+    const cam = this.engine.camera;
+    cam.position.set(12.5, 1.7, 20.5);
+    cam.lookAt(0, 2, 0);
+    this.engine.render();
+    for (const o of hidden) o.visible = false;
   }
 
   buildWorld() {
@@ -269,6 +327,7 @@ export class Game {
     canvas.addEventListener('click', () => {
       if (this.state === 'playing' && !this.input.locked && !this.overlay) this.input.requestLock();
     });
+    this.input.onLockFail = () => this.ui.lockHint(this.state === 'playing' && !this.overlay && !this.input.locked);
     this.input.onLockChange((locked) => {
       this.ui.lockHint(!locked && this.state === 'playing' && !this.overlay);
       if (!locked && this.state === 'playing' && !this.overlay) {
@@ -365,6 +424,7 @@ export class Game {
     this.ui.viewfinder(false);
     this.ui.hideView(null);
     this.input.exitLock();
+    this.hand.model.visible = false;
     this.ui.show('title');
     this.ui.fade(0, 0.8);
     (document.getElementById('btn-continue') as HTMLElement).classList.toggle('hidden', !this.story.hasSave());
@@ -716,10 +776,10 @@ export class Game {
     const held = this.hasFlashlight && this.flashOn && !this.cameraRaised && !this.player.hidden && this.state === 'playing';
     this.hand.setHeld(held);
     const q = settings.quality;
-    const wantShadow = this.flashOn && q !== 'bajo';
-    if (this.flashlight.castShadow !== wantShadow) {
-      this.flashlight.castShadow = wantShadow;
-    }
+    // castShadow stays fixed: toggling it changes the light setup and recompiles every
+    // shader in the scene (a long freeze each time F was pressed). Only skip the render.
+    this.flashlight.castShadow = q !== 'bajo';
+    this.flashlight.shadow.autoUpdate = this.flashOn;
     this.hand.update(dt, this.flashOn && !this.player.hidden, f * this.hand.raise, this.player.lastDX, this.player.lastDY, this.player.moveSpeed, this.player.running, (o, d, m) => this.world.col.rayDist(o, d, m));
     this.ui.battery(this.hasFlashlight ? this.battery : null);
   }

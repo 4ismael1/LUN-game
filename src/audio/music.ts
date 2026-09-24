@@ -150,9 +150,10 @@ export class Music {
     add('rim', 60);
     for (let i = 0; i < need.length; i++) {
       this.buf(need[i][0], need[i][1]);
-      if (i % 6 === 0) {
+      // small slices so the title keeps animating while this runs in the background
+      if (i % 2 === 1) {
         progress?.(i / need.length);
-        await new Promise((r) => setTimeout(r, 0));
+        await new Promise((r) => setTimeout(r, 24));
       }
     }
     progress?.(1);

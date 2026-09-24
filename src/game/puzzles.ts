@@ -537,18 +537,24 @@ export class Puzzles {
     let t = 0;
     let hits = 0;
     let zone = 0.55 + Math.random() * 0.25;
-    let cool = 0;
-    const width = 0.12;
+    // ignore input for a moment so the E press that opened the panel doesn't count as a pull
+    let cool = 0.45;
+    let flash = 0;
+    let flashOk = false;
+    const width = 0.17;
     const pull = () => {
       if (cool > 0) return;
-      cool = 0.7;
+      cool = 0.55;
       const x = (Math.sin(t) + 1) / 2;
-      const ok = Math.abs(x - zone) < width / 2;
+      // a little more forgiving than what is drawn (input latency)
+      const ok = Math.abs(x - zone) < width / 2 + 0.025;
       onAttempt(ok);
+      flash = 0.35;
+      flashOk = ok;
       if (ok) {
         hits++;
         seqEl.textContent = '● '.repeat(hits) + '○ '.repeat(Math.max(0, 3 - hits));
-        fb.textContent = hits < 3 ? 'El motor tose… casi.' : '¡Arrancó!';
+        fb.textContent = hits === 1 ? 'El motor tose…' : hits === 2 ? '¡Casi! Una vez más.' : '¡Arrancó!';
         zone = 0.2 + Math.random() * 0.6;
         if (hits >= 3) {
           setTimeout(() => {
@@ -556,11 +562,12 @@ export class Puzzles {
             onSolved();
           }, 600);
         }
-      } else fb.textContent = 'La cuerda se regresa con un chasquido.';
+      } else fb.textContent = 'La cuerda se regresa con un chasquido. Espera a que la marca esté dentro de la zona.';
     };
     seqEl.textContent = '○ ○ ○';
     cv.addEventListener('click', pull);
     this.keys((e) => {
+      if (e.repeat) return;
       if (e.code === 'KeyE' || e.code === 'Space') {
         e.preventDefault();
         pull();
@@ -571,18 +578,26 @@ export class Puzzles {
     const anim = () => {
       raf = requestAnimationFrame(anim);
       const now = performance.now();
-      const dt = (now - last) / 1000;
+      const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      t += dt * (2.2 + hits * 0.6);
+      if (hits < 3) t += dt * (1.7 + hits * 0.35);
       cool -= dt;
-      c.fillStyle = '#16100c';
+      flash = Math.max(0, flash - dt);
+      const x = (Math.sin(t) + 1) / 2;
+      const inside = Math.abs(x - zone) < width / 2;
+      c.fillStyle = flash > 0 ? (flashOk ? `rgba(80,160,90,${flash})` : `rgba(170,50,40,${flash})`) : '#16100c';
       c.fillRect(0, 0, 600, 90);
-      c.fillStyle = 'rgba(227,161,61,0.35)';
+      if (flash > 0) {
+        c.fillStyle = '#16100c';
+        c.globalAlpha = 1 - flash * 1.5;
+        c.fillRect(0, 0, 600, 90);
+        c.globalAlpha = 1;
+      }
+      c.fillStyle = inside ? 'rgba(240,190,90,0.6)' : 'rgba(227,161,61,0.32)';
       c.fillRect(20 + (zone - width / 2) * 560, 20, width * 560, 50);
       c.strokeStyle = 'rgba(232,216,176,0.4)';
       c.strokeRect(20, 20, 560, 50);
-      const x = (Math.sin(t) + 1) / 2;
-      c.fillStyle = '#eadfc8';
+      c.fillStyle = inside ? '#fff6dc' : '#eadfc8';
       c.fillRect(20 + x * 560 - 3, 14, 6, 62);
     };
     anim();

@@ -71,7 +71,8 @@ async function boot() {
     return;
   }
   game.start();
-  game.ui.hide('loading');
   game.toTitle();
+  game.ui.finishLoading();
+  game.loadRest();
 }
 boot();

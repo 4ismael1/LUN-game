@@ -78,9 +78,45 @@ export class UI {
     return this.stack[this.stack.length - 1];
   }
 
+  private loadShown = 0;
+  private tipTimer = 0;
   setLoading(f: number, label: string) {
-    ($('load-fill') as HTMLElement).style.width = Math.round(f * 100) + '%';
+    // never go backwards, and never claim 100% before we're done
+    this.loadShown = Math.max(this.loadShown, Math.min(f, label === 'Listo' ? 1 : 0.99));
+    const pct = Math.round(this.loadShown * 100);
+    ($('load-fill') as HTMLElement).style.width = pct + '%';
+    $('load-pct').textContent = pct + '%';
     $('load-label').textContent = label;
+    if (!this.tipTimer) {
+      const tips = [
+        'Se recomienda usar audífonos.',
+        'Lo que puedes usar tiene un punto encima. Apúntale y pulsa <kbd>E</kbd>.',
+        'Los diálogos se adelantan con <kbd>E</kbd>, <kbd>Espacio</kbd> o clic.',
+        'Correr y la linterna hacen que te encuentren antes.',
+        'El juego guarda solo en cada punto de control.',
+      ];
+      let i = 0;
+      const tip = $('load-tip');
+      this.tipTimer = window.setInterval(() => {
+        if (!this.isShown('loading')) return clearInterval(this.tipTimer);
+        i = (i + 1) % tips.length;
+        tip.style.opacity = '0';
+        setTimeout(() => {
+          tip.innerHTML = tips[i];
+          tip.style.opacity = '1';
+        }, 400);
+      }, 4200);
+    }
+  }
+
+  /** fade the loading screen away instead of cutting to the menu */
+  finishLoading() {
+    const el = $('loading');
+    el.classList.add('out');
+    setTimeout(() => {
+      this.hide('loading');
+      el.classList.remove('out');
+    }, 650);
   }
 
   setHud(v: boolean) {

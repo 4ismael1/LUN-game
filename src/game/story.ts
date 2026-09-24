@@ -1091,8 +1091,10 @@ export class Story {
       g.battery = 1;
       this.startClimaxHunt();
       this.objective(this.flags.generatorOn ? 'Sube los interruptores del tablero eléctrico.' : 'Arranca la planta de luz del escenario.');
-      this.climaxDeadline = g.tasks.time + (this.flags.climaxLeft ?? 420);
+      // a checkpoint must stay winnable: at least 3 minutes to dawn
+      this.climaxDeadline = g.tasks.time + Math.max(180, this.flags.climaxLeft ?? 420);
     } else if (s === S.CLIMAX_RUN) {
+      this.climaxDeadline = g.tasks.time + Math.max(150, this.flags.climaxLeft ?? 150);
       this.objective('¡Toca el alba en el campanario!');
       this.startFinalChase();
     }
@@ -1961,6 +1963,8 @@ export class Story {
         await g.wait(0.08);
       }
       g.world.lights.globalLevel = 1;
+      // the run to the tower and the bells need time, however long the generator took
+      this.climaxDeadline = Math.max(this.climaxDeadline, g.tasks.time + 150);
       await g.think('Esta vez… no se fue la luz.');
       this.objective('¡Toca el alba en el campanario!');
       this.saveCheckpoint(g.player.pos.clone(), g.player.yaw);
@@ -1979,16 +1983,27 @@ export class Story {
     g.sfx('creature_scream', e.pos.clone().setY(2), 0.8);
     this.flags.finalChase = true;
     this.flags.towerChaseStarted = false;
+    this.flags.towerClimb = false;
   }
 
-  private towerChase() {
+  /**
+   * Final chase in the tower: she stops following on the stairs and starts climbing only
+   * once Julián reaches the belfry, so the bells get a fair window (~25 s) whatever
+   * pace he climbed at. Growls on the way up tell him how close she is.
+   */
+  private towerChase(atTop: boolean) {
     const g = this.g;
-    if (this.flags.towerChaseStarted) return;
-    this.flags.towerChaseStarted = true;
+    if (!this.flags.towerChaseStarted) {
+      this.flags.towerChaseStarted = true;
+      g.entity.hide();
+      this.scriptedChase = true; // keep the chase music going
+    }
+    if (!atTop || this.flags.towerClimb) return;
+    this.flags.towerClimb = true;
     g.tasks.run(async () => {
       const e = g.entity;
-      e.hide();
-      await g.wait(3.5);
+      await g.wait(1.5);
+      if (this.stage !== S.CLIMAX_RUN) return;
       // she climbs the same stairs
       const path: THREE.Vector3[] = [V(-6.8, 0.05, -39.4), V(-9.3, 0.05, -39.4), V(-9.3, 0.05, -37.3)];
       const ix0 = -14.5 + 0.8, ix1 = -8 - 0.8, iz0 = -42.5 + 0.8, iz1 = -36 - 0.8;
@@ -2001,10 +2016,21 @@ export class Story {
       }
       path.push(V(-11.25, 18.05, -39.8));
       e.place(path[0]);
-      e.scripted(path, 2.05);
-      this.scriptedChase = true;
-      g.sfx('creature_growl', path[0].clone().setY(2), 0.8, { ref: 6 });
-      await g.think('Viene subiendo.');
+      e.scripted(path, 1.9);
+      g.sfx('door_slam', V(-6.8, 1.2, -39.4), 0.8, { ref: 8 });
+      g.sfx('creature_growl', path[0].clone().setY(2), 0.8, { ref: 8 });
+      await g.think('Viene subiendo. Rápido: Dolores, Soledad, Esperanza, Luz.');
+      // growl every few flights so the player can hear her getting closer
+      let lastFlight = 0;
+      while (this.stage === S.CLIMAX_RUN && e.mode === 'scripted' && e.scriptedPath.length) {
+        const flight = Math.floor(e.pos.y / 6);
+        if (flight > lastFlight) {
+          lastFlight = flight;
+          g.sfx('creature_growl', e.pos.clone().setY(e.pos.y + 1.8), 0.6 + flight * 0.1, { ref: 6 });
+          if (flight === 2) g.ui.hint('Ya casi llega arriba…', 2.5);
+        }
+        await g.wait(0.25);
+      }
     });
   }
 
@@ -2266,7 +2292,7 @@ export class Story {
     if (z === 'tower' && s >= S.CANDLES && !this.flags.extension) {
       this.flags.extension = true;
     }
-    if (z === 'tower' && s === S.CLIMAX_RUN) this.towerChase();
+    if ((z === 'tower' || z === 'belfry') && s === S.CLIMAX_RUN) this.towerChase(z === 'belfry');
     if (z === 'belfry' && s === S.CANDLES && !this.flags.belfryFirst) {
       this.flags.belfryFirst = true;
       g.tasks.run(async () => {
@@ -2695,8 +2721,9 @@ export class Story {
     this.titleAngle += dt * 0.035;
     const a = this.titleAngle + 2.2;
     const cam = g.engine.camera;
-    cam.position.set(Math.cos(a) * 17, 3.4 + Math.sin(this.titleAngle * 0.7) * 0.4, Math.sin(a) * 17);
-    cam.lookAt(0, 3.2, 0);
+    // orbit between the kiosk and the ring of laurels so no crown blocks the view
+    cam.position.set(Math.cos(a) * 10.5, 2.4 + Math.sin(this.titleAngle * 0.7) * 0.3, Math.sin(a) * 10.5);
+    cam.lookAt(0, 3.4, 0);
   }
 }
 

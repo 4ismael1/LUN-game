@@ -129,9 +129,11 @@ export function buildSky(scene: THREE.Scene): Sky {
       const dawn = uniforms.uDawn.value;
       moon.color.setRGB(0.55 + dawn * 0.45, 0.66 + dawn * 0.2, 0.85 - dawn * 0.3);
       moon.intensity = 0.55 + dawn * 1.4 + uniforms.uFlash.value * 3.0;
-      hemi.color.setRGB(0.23 + dawn * 0.4, 0.29 + dawn * 0.35, 0.44 + dawn * 0.3);
-      hemi.groundColor.setRGB(0.16 + dawn * 0.25, 0.12 + dawn * 0.15, 0.1 + dawn * 0.1);
-      hemi.intensity = 0.35 + dawn * 0.9 + uniforms.uFlash.value * 1.5;
+      // climax: a dim red glow from the sky so the square stays readable without the flashlight
+      const red = uniforms.uRed.value;
+      hemi.color.setRGB(0.23 + dawn * 0.4 + red * 0.5, 0.29 + dawn * 0.35 - red * 0.08, 0.44 + dawn * 0.3 - red * 0.2);
+      hemi.groundColor.setRGB(0.16 + dawn * 0.25 + red * 0.12, 0.12 + dawn * 0.15, 0.1 + dawn * 0.1);
+      hemi.intensity = 0.35 + dawn * 0.9 + red * 0.3 + uniforms.uFlash.value * 1.5;
     },
   };
 }
