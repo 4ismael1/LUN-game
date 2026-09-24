@@ -1179,6 +1179,7 @@ export class Story {
     const g = this.g;
     const n = this.npc[id];
     n.talking = true;
+    n.greet();
     g.convo = 'npc';
     g.ui.letterbox(true);
     const p = n.pos.clone().setY(n.pos.y + 1.6);

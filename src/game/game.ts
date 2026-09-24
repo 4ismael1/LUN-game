@@ -17,6 +17,7 @@ import { buildMarket, MarketRefs } from '../world/build/market';
 import { buildHouse, HouseRefs } from '../world/build/house';
 import { buildStage, StageRefs } from '../world/build/stage';
 import { buildFiller } from '../world/build/filler';
+import { AmbientLife } from '../world/life';
 import { buildStreets, LoopStreet } from '../world/build/streets';
 import { buildSky, Sky } from '../world/build/sky';
 import { drawSymbol } from '../world/canvasTex';
@@ -90,6 +91,7 @@ export class Game {
   house!: HouseRefs;
   stage!: StageRefs;
   streets!: LoopStreet[];
+  life!: AmbientLife;
   state: GameState = 'loading';
   overlay: null | 'inventory' | 'reader' | 'puzzle' = null;
   puzzleBlocking = false;
@@ -278,6 +280,8 @@ export class Game {
     w.zone('house', -43, -76, -24, -52, { priority: 4, indoor: true, reverb: [0.55, 0.05, 0], footstep: 'tile' });
     w.zone('patio', -35, -68, -28, -58, { priority: 5, reverb: [0.35, 0.05, 0], footstep: 'stone' });
     w.zone('stage', 30, -12, 50, 12, { priority: 2, reverb: [0.25, 0.2, 0], footstep: 'stone' });
+    this.life = new AmbientLife(w);
+    this.life.attach(this.engine.camera);
     w.finalize();
     w.setupCulling(['props', 'bulbs', 'signs', 'doors', 'market', 'callejon', 'stage', 'house']);
     // nav grid for the entity
@@ -1101,6 +1105,8 @@ export class Game {
     if (this.state !== 'paused') {
       this.world.update(dt, t);
       this.world.lights.update(dt, t, this.engine.camera);
+      this.life.density = !this.story || this.story.stage === 0 ? 1 : 0.5;
+      this.life.update(dt, t, this.engine.camera.position, this.flashOn && this.state === 'playing' ? this.hand.raise : 0, this.mats.uniforms.uWind.value, !!this.zone?.indoor);
       this.music.update(dt);
       this.amb.listener.copy(this.engine.camera.position);
       this.amb.update(this.state === 'playing' ? dt : 0);
